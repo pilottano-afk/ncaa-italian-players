@@ -33,5 +33,7 @@ jobs:
           cache: pip
       - name: Install project
         run: python -m pip install -e ".[dev]"
+      - name: Check local import helper syntax
+        run: bash -n scripts/import-staging.sh
       - name: Run unit and PostgreSQL integration tests
         run: python -m pytest -q
