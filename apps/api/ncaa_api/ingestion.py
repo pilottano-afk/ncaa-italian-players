@@ -26,18 +26,30 @@ def inspect_parquet(path: str | Path, dataset: str) -> dict[str, Any]:
     names = schema.names
     row_count = parquet.metadata.num_rows
     season_status = "partition_tag_only"
-    season_values: list[int] = []
+    distinct_seasons: set[int] = set()
+    season_null_rows = 0
+    season_non_null_rows = 0
 
     if "season" in names:
-        season_status = "validated"
         for batch in parquet.iter_batches(columns=["season"], batch_size=50_000):
             for value in batch.column(0).to_pylist():
                 if value is None:
+                    season_null_rows += 1
                     continue
-                season_values.append(require_current_season(value))
-        if not season_values and row_count:
+                distinct_seasons.add(require_current_season(value))
+                season_non_null_rows += 1
+        if row_count and season_non_null_rows == 0:
             season_status = "season_column_all_null"
+        elif season_null_rows:
+            season_status = "season_column_contains_nulls"
+        else:
+            season_status = "validated"
 
+    validation = (
+        "passed"
+        if season_status in {"validated", "partition_tag_only"}
+        else "warning"
+    )
     return {
         "dataset": dataset,
         "season": CURRENT_SEASON,
@@ -51,9 +63,11 @@ def inspect_parquet(path: str | Path, dataset: str) -> dict[str, Any]:
             for field in schema
         ],
         "season_validation": season_status,
-        "distinct_season_values": sorted(set(season_values)),
+        "season_non_null_rows": season_non_null_rows,
+        "season_null_rows": season_null_rows,
+        "distinct_season_values": sorted(distinct_seasons),
         "inspected_at": datetime.now(timezone.utc).isoformat(),
-        "validation": "passed" if season_status in {"validated", "partition_tag_only"} else "warning",
+        "validation": validation,
     }
 
 
@@ -76,6 +90,7 @@ def stage_bootstrap_data(
         provider.download(dataset, destination, CURRENT_SEASON)
         reports.append(inspect_parquet(destination, dataset))
 
+    has_warnings = any(report["validation"] != "passed" for report in reports)
     manifest = {
         "season": CURRENT_SEASON,
         "season_label": CURRENT_SEASON_LABEL,
@@ -83,11 +98,12 @@ def stage_bootstrap_data(
         "source": "SportsDataverse NCAA MBB releases",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "datasets": reports,
-        "status": "staged_for_schema_review",
+        "status": "schema_review_required" if has_warnings else "staged_for_schema_review",
         "database_imported": False,
         "note": (
-            "Files are staged locally. Review actual provider schemas and coverage "
-            "before mapping records into normalized database tables."
+            "Files are staged locally. A partition filename is not proof that every "
+            "record belongs to the season; null or missing season values require review. "
+            "Review actual provider schemas and coverage before normalized database import."
         ),
     }
     manifest_path = output / "manifest.json"
