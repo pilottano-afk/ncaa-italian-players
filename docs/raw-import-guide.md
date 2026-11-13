@@ -15,24 +15,22 @@ The importer is the first database step after staging and quality audit. It stor
 ## Run locally
 
 1. Put the contents of the successful GitHub Actions artifact ZIP in `data/staging/2027/`. The directory must contain `manifest.json`, `quality-audit.json`, and the 11 `ncaa_mbb_*_2027.parquet` files.
-2. Start PostgreSQL from the repository root:
+2. From the repository root, run the helper script:
 
    ```bash
-   docker compose up -d db
+   bash scripts/import-staging.sh
    ```
 
-3. Install the project in the same Python environment:
+   The script starts only the PostgreSQL service, installs the project in the active Python environment, checks that the manifest and quality audit are present, and launches the season-locked importer.
+
+   To use a different database URL or staging directory:
 
    ```bash
-   python -m pip install -e .
+   DATABASE_URL='postgresql+psycopg://ncaa:ncaa@localhost:5432/ncaa_players' \\
+     bash scripts/import-staging.sh data/staging/2027
    ```
 
-4. Set the local development database URL and import:
-
-   ```bash
-   export DATABASE_URL='postgresql+psycopg://ncaa:ncaa@localhost:5432/ncaa_players'
-   ncaa-import-raw --input data/staging/2027
-   ```
+   The default URL is for the local development database in `docker-compose.yml`; change it only if you intentionally use another PostgreSQL instance.
 
 The importer writes to `ncaa_raw_rows`. It uses the SHA-256 hash of each Parquet file plus its source row number as an idempotency key. Re-importing the exact same artifact will not duplicate rows. A newly generated Parquet file has a new hash and is retained as a separate source snapshot.
 
