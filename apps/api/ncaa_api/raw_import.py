@@ -140,6 +140,41 @@ def _iter_records(path: Path, dataset: str) -> Iterable[tuple[int, dict[str, Any
             yield row_number, _json_value(record)
 
 
+def _preflight_dataset(folder: Path, dataset: str, report: dict[str, Any]) -> dict[str, Any]:
+    """Validate a complete source file before opening any database write transaction."""
+    path = folder / f"ncaa_mbb_{dataset}_{CURRENT_SEASON}.parquet"
+    if not path.is_file():
+        raise FileNotFoundError(f"Manifest dataset file is missing: {path}")
+    SportsDataverseClient.validate_parquet(path)
+    parquet = pq.ParquetFile(path)
+    actual_rows = parquet.metadata.num_rows
+    if actual_rows != report.get("rows"):
+        raise ValueError(
+            f"{dataset}: Parquet has {actual_rows} rows but manifest reports {report.get('rows')}."
+        )
+    if "season" not in parquet.schema_arrow.names:
+        raise ValueError(f"{dataset}: no season column; refusing unverified season import.")
+
+    distinct_seasons: set[int] = set()
+    null_seasons = 0
+    for batch in parquet.iter_batches(columns=["season"], batch_size=50_000):
+        for value in batch.column(0).to_pylist():
+            if value is None:
+                null_seasons += 1
+            else:
+                distinct_seasons.add(require_current_season(value))
+    if null_seasons or distinct_seasons != {CURRENT_SEASON}:
+        raise ValueError(
+            f"{dataset}: preflight season check failed "
+            f"(null_rows={null_seasons}, values={sorted(distinct_seasons)})."
+        )
+    return {
+        "path": path,
+        "rows": actual_rows,
+        "artifact_sha256": _sha256(path),
+    }
+
+
 def import_staged_raw(
     input_dir: str | Path,
     database_url: str,
