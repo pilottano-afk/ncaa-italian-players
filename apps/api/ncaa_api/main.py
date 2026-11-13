@@ -29,11 +29,11 @@ def coverage() -> dict[str, object]:
         SourceHealth.make(
             "collegebasketballdata",
             "CollegeBasketballData.com",
-            "not_configured" if not cbbd.configured else "reachable",
+            "configured" if cbbd.configured else "not_configured",
             message=(
                 "API key not configured; no live request has been made."
                 if not cbbd.configured
-                else "API key is present; a live dataset request is still required to verify coverage."
+                else "API key is present; no live dataset request has been made yet."
             ),
             documentation_url="https://api.collegebasketballdata.com/data-availability",
         ).as_dict(),
