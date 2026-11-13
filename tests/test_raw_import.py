@@ -8,7 +8,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from ncaa_api.raw_import import _iter_records, _json_value, _normalize_database_url, _validate_manifest
+from ncaa_api.raw_import import _iter_records, _json_value, _normalize_database_url, _preflight_dataset, _validate_manifest
 
 
 def test_json_value_preserves_common_arrow_python_types() -> None:
@@ -106,3 +106,40 @@ def test_database_url_uses_psycopg3_driver() -> None:
     )
     with pytest.raises(ValueError, match="PostgreSQL"):
         _normalize_database_url("sqlite:///not-supported.db")
+
+
+
+def test_preflight_checks_file_rows_and_season(tmp_path: Path) -> None:
+    path = tmp_path / "ncaa_mbb_schedule_2027.parquet"
+    pq.write_table(
+        pa.table({"contest_id": ["g1", "g2"], "season": [2027, 2027]}),
+        path,
+    )
+    report = {
+        "rows": 2,
+        "season_validation": "validated",
+        "season_null_rows": 0,
+        "distinct_season_values": [2027],
+    }
+    result = _preflight_dataset(tmp_path, "schedule", report)
+    assert result["rows"] == 2
+    assert len(result["artifact_sha256"]) == 64
+
+    with pytest.raises(ValueError, match="manifest reports 3"):
+        _preflight_dataset(tmp_path, "schedule", {**report, "rows": 3})
+
+
+def test_preflight_rejects_wrong_season_before_database_write(tmp_path: Path) -> None:
+    path = tmp_path / "ncaa_mbb_schedule_2027.parquet"
+    pq.write_table(
+        pa.table({"contest_id": ["g1"], "season": [2026]}),
+        path,
+    )
+    report = {
+        "rows": 1,
+        "season_validation": "validated",
+        "season_null_rows": 0,
+        "distinct_season_values": [2027],
+    }
+    with pytest.raises(ValueError, match="season"):
+        _preflight_dataset(tmp_path, "schedule", report)
