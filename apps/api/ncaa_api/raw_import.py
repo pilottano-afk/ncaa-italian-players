@@ -70,6 +70,12 @@ def _json_value(value: Any) -> Any:
     raise TypeError(f"Unsupported value for raw JSON preservation: {type(value).__name__}")
 
 
+def _normalize_database_url(database_url: str) -> str:
+    """Select the installed psycopg 3 SQLAlchemy dialect explicitly."""
+    database_url = _normalize_database_url(database_url)
+    return database_url
+
+
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
