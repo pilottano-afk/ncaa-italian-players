@@ -45,7 +45,13 @@ ON CONFLICT (dataset, artifact_sha256, source_row_number) DO NOTHING
 
 def _json_value(value: Any) -> Any:
     """Convert Arrow/Python values into loss-minimizing JSON-compatible values."""
-    if value is None or isinstance(value, (str, int, float, bool)):
+    if value is None or isinstance(value, (str, int, bool)):
+        return value
+    if isinstance(value, float):
+        if value != value:
+            return {"__type__": "non_finite_float", "value": "NaN"}
+        if value in (float("inf"), float("-inf")):
+            return {"__type__": "non_finite_float", "value": "Infinity" if value > 0 else "-Infinity"}
         return value
     if isinstance(value, (datetime, date)):
         return value.isoformat()
@@ -81,9 +87,34 @@ def _validate_manifest(folder: Path) -> dict[str, Any]:
         raise ValueError(f"Manifest must be for NCAA season {CURRENT_SEASON_LABEL}.")
     if manifest.get("historical_data_enabled") is not False:
         raise ValueError("Refusing import: manifest does not explicitly disable historical data.")
-    if manifest.get("database_imported") is True:
-        # Re-imports are still safe/idempotent, but a stale manifest flag is misleading.
-        raise ValueError("Manifest unexpectedly claims database import has already occurred.")
+    if manifest.get("database_imported") is not False:
+        raise ValueError("Refusing import: manifest must explicitly state database_imported=false.")
+    reports = {
+        item.get("dataset"): item
+        for item in manifest.get("datasets", [])
+        if isinstance(item, dict)
+    }
+    if not reports:
+        raise ValueError("Manifest contains no dataset validation reports.")
+    for dataset, report in reports.items():
+        if report.get("season_validation") != "validated":
+            raise ValueError(f"{dataset}: season column was not fully validated.")
+        if report.get("season_null_rows") != 0:
+            raise ValueError(f"{dataset}: null season rows are not allowed.")
+        if report.get("distinct_season_values") != [CURRENT_SEASON]:
+            raise ValueError(f"{dataset}: manifest does not prove an exclusive 2027 partition.")
+
+    audit_path = folder / "quality-audit.json"
+    if not audit_path.is_file():
+        raise FileNotFoundError(f"Required quality audit not found: {audit_path}")
+    audit = json.loads(audit_path.read_text(encoding="utf-8"))
+    if audit.get("season") != CURRENT_SEASON or audit.get("database_imported") is not False:
+        raise ValueError("Quality audit does not match the expected pre-import 2026-27 state.")
+    audited = audit.get("datasets", {})
+    for dataset, report in reports.items():
+        audit_report = audited.get(dataset)
+        if not audit_report or audit_report.get("rows") != report.get("rows"):
+            raise ValueError(f"{dataset}: quality audit is missing or row count does not match.")
     return manifest
 
 
