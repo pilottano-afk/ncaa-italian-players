@@ -8,7 +8,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from ncaa_api.raw_import import _iter_records, _json_value, _validate_manifest
+from ncaa_api.raw_import import _iter_records, _json_value, _normalize_database_url, _validate_manifest
 
 
 def test_json_value_preserves_common_arrow_python_types() -> None:
@@ -95,3 +95,14 @@ def test_validate_manifest_requires_history_disabled(tmp_path: Path) -> None:
     (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     with pytest.raises(ValueError, match="historical data"):
         _validate_manifest(tmp_path)
+
+
+def test_database_url_uses_psycopg3_driver() -> None:
+    assert _normalize_database_url("postgresql://user:pass@localhost/db") == (
+        "postgresql+psycopg://user:pass@localhost/db"
+    )
+    assert _normalize_database_url("postgresql+psycopg://user:pass@localhost/db") == (
+        "postgresql+psycopg://user:pass@localhost/db"
+    )
+    with pytest.raises(ValueError, match="PostgreSQL"):
+        _normalize_database_url("sqlite:///not-supported.db")
