@@ -162,17 +162,24 @@ def import_staged_raw(
     if not selected:
         raise ValueError("Manifest contains no supported NCAA MBB datasets.")
 
+    # Complete all file, row-count and season checks before the first database write.
+    preflight = {
+        dataset: _preflight_dataset(
+            folder,
+            dataset,
+            next(item for item in manifest["datasets"] if item.get("dataset") == dataset),
+        )
+        for dataset in selected
+    }
+
     engine = create_engine(database_url, pool_pre_ping=True)
     totals: dict[str, dict[str, int]] = {}
     try:
         with engine.begin() as connection:
             connection.execute(text(TABLE_DDL))
         for dataset in selected:
-            path = folder / f"ncaa_mbb_{dataset}_{CURRENT_SEASON}.parquet"
-            if not path.is_file():
-                raise FileNotFoundError(f"Manifest dataset file is missing: {path}")
-            SportsDataverseClient.validate_parquet(path)
-            artifact_hash = _sha256(path)
+            path = preflight[dataset]["path"]
+            artifact_hash = preflight[dataset]["artifact_sha256"]
             pending: list[dict[str, Any]] = []
             seen = inserted = 0
 
