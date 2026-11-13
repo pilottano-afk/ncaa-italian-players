@@ -18,6 +18,9 @@ dependencies = [
   "pyarrow>=18.0,<22.0",
 ]
 
+[project.scripts]
+ncaa-stage = "ncaa_api.cli:main"
+
 [project.optional-dependencies]
 dev = ["pytest>=8.3,<9.0", "ruff>=0.6,<1.0"]
 
