@@ -18,6 +18,8 @@ def test_inspects_current_season_parquet(tmp_path: Path) -> None:
     report = inspect_parquet(path, "player_box")
     assert report["rows"] == 2
     assert report["season_validation"] == "validated"
+    assert report["season_non_null_rows"] == 2
+    assert report["season_null_rows"] == 0
     assert report["distinct_season_values"] == [2027]
     assert report["validation"] == "passed"
 
@@ -35,10 +37,23 @@ def test_marks_partition_only_when_no_season_column(tmp_path: Path) -> None:
     report = inspect_parquet(path, "schedule")
     assert report["season_validation"] == "partition_tag_only"
     assert report["season"] == 2027
+    assert report["validation"] == "passed"
 
 
-def test_manifest_policy_is_not_claimed_as_database_import(tmp_path: Path) -> None:
-    # The CLI staging layer deliberately reports database_imported=False.
-    path = tmp_path / "one.parquet"
-    write_parquet(path, pa.table({"season": [2027]}))
-    assert inspect_parquet(path, "player_box")["validation"] == "passed"
+def test_warns_when_season_column_contains_nulls(tmp_path: Path) -> None:
+    path = tmp_path / "players_with_null_season.parquet"
+    write_parquet(path, pa.table({"season": [2027, None, 2027]}))
+    report = inspect_parquet(path, "player_box")
+    assert report["season_validation"] == "season_column_contains_nulls"
+    assert report["season_non_null_rows"] == 2
+    assert report["season_null_rows"] == 1
+    assert report["validation"] == "warning"
+
+
+def test_warns_when_season_column_is_all_null(tmp_path: Path) -> None:
+    path = tmp_path / "unknown_season.parquet"
+    write_parquet(path, pa.table({"season": pa.array([None, None], type=pa.int64())}))
+    report = inspect_parquet(path, "player_box")
+    assert report["season_validation"] == "season_column_all_null"
+    assert report["season_null_rows"] == 2
+    assert report["validation"] == "warning"
