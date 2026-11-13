@@ -141,5 +141,5 @@ def test_preflight_rejects_wrong_season_before_database_write(tmp_path: Path) ->
         "season_null_rows": 0,
         "distinct_season_values": [2027],
     }
-    with pytest.raises(ValueError, match="season"):
+    with pytest.raises(ValueError, match="[Ss]eason"):
         _preflight_dataset(tmp_path, "schedule", report)
