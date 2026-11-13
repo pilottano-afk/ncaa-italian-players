@@ -50,7 +50,7 @@ SOURCE_CATALOG = [
         "url": "https://github.com/sportsdataverse/ncaa-mbb-hoops-data",
         "upstream": "stats.ncaa.org",
         "datasets": [
-            "schedule", "team_rosters", "rosters", "pbp", "player_box",
+            "schedule", "team_rosters", "rosters", "team_ids", "pbp", "player_box",
             "team_box", "lineups", "matchup_stints", "possessions", "shots",
         ],
     },
