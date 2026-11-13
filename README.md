@@ -49,6 +49,14 @@ Requirements: Docker Desktop or Docker Engine with the Compose plugin.
 docker compose up --build
 ```
 
+To download and inspect the first real 2026-27 data files (schedule, rosters and player box scores):
+
+```bash
+ncaa-stage
+```
+
+The files and a validation manifest are written under `data/staging/2027/`. This is a staging step, not yet a PostgreSQL import. You can request additional datasets, for example `ncaa-stage --datasets lineups possessions shots`.
+
 Then open:
 - API health: http://localhost:8000/health
 - API source/coverage status: http://localhost:8000/api/v1/coverage
