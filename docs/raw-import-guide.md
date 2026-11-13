@@ -7,7 +7,9 @@ The importer is the first database step after staging and quality audit. It stor
 - `manifest.json` must identify season `2027` and explicitly disable historical data.
 - Every dataset must have a validated, non-null `season` column containing only `2027`.
 - `quality-audit.json` must exist, identify season `2027`, and report row counts matching the manifest.
+- All Parquet files are preflighted before the first database write: file signature, row count, season column, null season rows and distinct season values.
 - Every imported row is checked again; a historical or null season value stops the import.
+- The import runs in one transaction per dataset; the artifact hash and row number make retries idempotent.
 - PostgreSQL is required. SQLite is not supported for this operation.
 
 ## Run locally
@@ -68,5 +70,7 @@ LIMIT 3;
 - It does not calculate advanced statistics.
 - It does not claim that the 2026-27 season is complete.
 - It does not run automatically in GitHub Actions, where there is no persistent project database configured.
+
+The GitHub Actions test workflow includes a PostgreSQL service and an end-to-end idempotency test for the importer. This verifies the import path against a real PostgreSQL engine without using or changing your personal database.
 
 This separation preserves the source data while allowing the next phase to build and test normalized analytical views against real records.
