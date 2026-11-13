@@ -1,6 +1,6 @@
 name: NCAA 2026-27 data staging
 
-on:
+"on":
   workflow_dispatch:
   schedule:
     - cron: "0 7 * * *"
@@ -30,14 +30,15 @@ jobs:
         run: python -m pip install -e .
 
       - name: Download and inspect all 2026-27 datasets
-        run: >
-          ncaa-stage
-          --datasets schedule team_rosters rosters pbp player_box team_box
+        run: >-
+          ncaa-stage --datasets schedule team_rosters rosters pbp player_box team_box
           lineups matchup_stints possessions shots team_ids
           --output data/staging/2027
 
       - name: Audit nulls, candidate keys and join coverage
-        run: ncaa-audit --input data/staging/2027 --output data/staging/2027/quality-audit.json
+        run: >-
+          ncaa-audit --input data/staging/2027
+          --output data/staging/2027/quality-audit.json
 
       - name: Upload staging files, schema manifest and quality audit
         uses: actions/upload-artifact@v4
