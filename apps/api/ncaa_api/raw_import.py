@@ -138,8 +138,10 @@ def import_staged_raw(
     batch_size: int = 500,
 ) -> dict[str, Any]:
     """Import validated 2026-27 provider rows to PostgreSQL JSONB, idempotently."""
-    if not database_url.startswith(("postgresql://", "postgresql+psycopg://")):
-        raise ValueError("Raw import currently requires PostgreSQL (postgresql+psycopg://).")
+    if database_url.startswith("postgresql://"):
+        database_url = "postgresql+psycopg://" + database_url.removeprefix("postgresql://")
+    if not database_url.startswith("postgresql+psycopg://"):
+        raise ValueError("Raw import currently requires PostgreSQL with psycopg 3.")
     if batch_size < 1 or batch_size > 5_000:
         raise ValueError("batch_size must be between 1 and 5000.")
 
