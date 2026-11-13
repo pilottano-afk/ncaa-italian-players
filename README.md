@@ -40,3 +40,27 @@ Repository inizializzato. In questa prima fase si definiscono architettura, mode
 ## Avvio
 
 Le istruzioni di sviluppo saranno aggiunte insieme ai primi componenti eseguibili. Non configurare API key o credenziali nel repository: usare variabili d'ambiente e `.env` locale escluso da Git.
+
+## Local development
+
+Requirements: Docker Desktop or Docker Engine with the Compose plugin.
+
+```bash
+docker compose up --build
+```
+
+Then open:
+- API health: http://localhost:8000/health
+- API source/coverage status: http://localhost:8000/api/v1/coverage
+- Interactive API docs: http://localhost:8000/docs
+
+To run tests without Docker:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
+python -m pytest -q
+```
+
+For CollegeBasketballData.com, copy `.env.example` to `.env` and add your API key locally. Never commit `.env`. The key is optional while working with the public SportsDataverse release assets.
