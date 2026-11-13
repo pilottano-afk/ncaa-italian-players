@@ -19,7 +19,8 @@ dependencies = [
 ]
 
 [project.scripts]
-ncaa-stage = "ncaa_api.cli:stage_main"\nncaa-audit = "ncaa_api.cli:audit_main"
+ncaa-stage = "ncaa_api.cli:stage_main"
+ncaa-audit = "ncaa_api.cli:audit_main"
 
 [project.optional-dependencies]
 dev = ["pytest>=8.3,<9.0", "ruff>=0.6,<1.0"]
