@@ -1,22 +1,20 @@
-"""Command-line entry point for staging the current NCAA season."""
+"""Command-line entry points for NCAA data staging and auditing."""
 import argparse
 import json
 
+from ncaa_api.audit import audit_staged_data
 from ncaa_api.ingestion import DEFAULT_BOOTSTRAP_DATASETS, stage_bootstrap_data
 
 
-def main() -> None:
+def stage_main() -> None:
     parser = argparse.ArgumentParser(description="Stage NCAA 2026-27 SportsDataverse datasets.")
     parser.add_argument(
-        "--datasets",
-        nargs="+",
-        choices=sorted(
-            {
-                "schedule", "team_rosters", "rosters", "team_ids", "pbp",
-                "player_box", "team_box", "lineups", "matchup_stints",
-                "possessions", "shots",
-            }
-        ),
+        "--datasets", nargs="+",
+        choices=sorted({
+            "schedule", "team_rosters", "rosters", "team_ids", "pbp",
+            "player_box", "team_box", "lineups", "matchup_stints",
+            "possessions", "shots",
+        }),
         default=list(DEFAULT_BOOTSTRAP_DATASETS),
         help="Dataset families to download. Defaults to schedule, rosters, player_box.",
     )
@@ -26,5 +24,16 @@ def main() -> None:
     print(json.dumps(manifest, indent=2))
 
 
+def audit_main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Audit staged NCAA Parquet nulls, candidate keys and joins."
+    )
+    parser.add_argument("--input", default="data/staging/2027")
+    parser.add_argument("--output", default="data/staging/2027/quality-audit.json")
+    args = parser.parse_args()
+    report = audit_staged_data(args.input, args.output)
+    print(json.dumps(report, indent=2))
+
+
 if __name__ == "__main__":
-    main()
+    stage_main()
