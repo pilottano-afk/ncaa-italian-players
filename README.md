@@ -28,7 +28,7 @@ Le fonti sono candidate: la disponibilità effettiva della stagione 2026-27 e de
 
 ## Stato
 
-Repository inizializzato. In questa prima fase si definiscono architettura, modello dati e controlli di qualità prima di collegare le fonti live.
+Base backend e staging real-data implementati. I dataset SportsDataverse 2026-27 sono stati scaricati e sottoposti a controlli di stagione, null, chiavi candidate e copertura dei join. Il database non è ancora stato popolato; il prossimo passaggio è l'importazione grezza controllata in PostgreSQL.
 
 ## Stack previsto
 
@@ -56,6 +56,14 @@ ncaa-stage
 ```
 
 The files and a validation manifest are written under `data/staging/2027/`. This is a staging step, not yet a PostgreSQL import. You can request additional datasets, for example `ncaa-stage --datasets lineups possessions shots`.
+
+To audit the staged Parquet files:
+
+```bash
+ncaa-audit --input data/staging/2027 --output data/staging/2027/quality-audit.json
+```
+
+After downloading the complete staging artifact (including `manifest.json` and `quality-audit.json`), the conservative PostgreSQL JSONB import is documented in [the raw import guide](docs/raw-import-guide.md). The importer rejects historical, null-season, or unaudited records and preserves source rows without assuming relational keys.
 
 Then open:
 - API health: http://localhost:8000/health
