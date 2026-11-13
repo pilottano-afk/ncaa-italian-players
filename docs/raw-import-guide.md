@@ -18,10 +18,10 @@ The importer is the first database step after staging and quality audit. It stor
 2. From the repository root, run the helper script:
 
    ```bash
-   bash scripts/import-staging.sh
+   bash scripts/import-staging.sh ~/Downloads/ncaa-2027-staging-<run-id>.zip
    ```
 
-   The script starts only the PostgreSQL service, installs the project in the active Python environment, checks that the manifest and quality audit are present, and launches the season-locked importer.
+   Pass the ZIP file you downloaded from GitHub Actions. The script extracts it into a temporary folder, starts only the PostgreSQL service, installs the project in the active Python environment, checks the manifest and quality audit, and launches the season-locked importer. It also accepts an already extracted staging directory; omit the argument to use `data/staging/2027/`.
 
    To use a different database URL or staging directory:
 
