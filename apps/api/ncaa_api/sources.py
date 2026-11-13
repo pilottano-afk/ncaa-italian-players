@@ -3,7 +3,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import Literal
 
-SourceState = Literal["not_configured", "configured", "reachable", "empty", "error", "partial"]
+SourceState = Literal["not_configured", "not_checked", "configured", "reachable", "empty", "error", "partial"]
 
 
 @dataclass(frozen=True)
