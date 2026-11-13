@@ -36,7 +36,10 @@ jobs:
           lineups matchup_stints possessions shots team_ids
           --output data/staging/2027
 
-      - name: Audit nulls, candidate keys and join coverage\n        run: ncaa-audit --input data/staging/2027 --output data/staging/2027/quality-audit.json\n\n      - name: Upload staging files, schema manifest and quality audit
+      - name: Audit nulls, candidate keys and join coverage
+        run: ncaa-audit --input data/staging/2027 --output data/staging/2027/quality-audit.json
+
+      - name: Upload staging files, schema manifest and quality audit
         uses: actions/upload-artifact@v4
         with:
           name: ncaa-2027-staging-${{ github.run_id }}
