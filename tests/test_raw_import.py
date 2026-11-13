@@ -1,6 +1,7 @@
 from datetime import date, datetime, timezone
 from decimal import Decimal
 import json
+import math
 from pathlib import Path
 
 import pyarrow as pa
@@ -17,6 +18,8 @@ def test_json_value_preserves_common_arrow_python_types() -> None:
         "decimal": Decimal("12.340"),
         "binary": b"abc",
         "nested": [1, None],
+        "nan": float("nan"),
+        "infinity": float("inf"),
     }
     normalized = _json_value(value)
     assert normalized["day"] == "2026-11-13"
@@ -24,6 +27,8 @@ def test_json_value_preserves_common_arrow_python_types() -> None:
     assert normalized["decimal"] == "12.340"
     assert normalized["binary"]["value"] == "YWJj"
     assert normalized["nested"] == [1, None]
+    assert normalized["nan"]["value"] == "NaN"
+    assert normalized["infinity"]["value"] == "Infinity"
 
 
 def test_iter_records_requires_current_season(tmp_path: Path) -> None:
@@ -40,16 +45,52 @@ def test_iter_records_rejects_historical_season(tmp_path: Path) -> None:
         list(_iter_records(path, "schedule"))
 
 
-def test_validate_manifest_requires_current_season_and_history_disabled(tmp_path: Path) -> None:
+def write_valid_import_metadata(folder: Path) -> None:
+    report = {
+        "dataset": "schedule",
+        "rows": 1,
+        "season_validation": "validated",
+        "season_null_rows": 0,
+        "distinct_season_values": [2027],
+    }
     manifest = {
         "season": 2027,
         "historical_data_enabled": False,
         "database_imported": False,
-        "datasets": [{"dataset": "schedule"}],
+        "datasets": [report],
     }
-    (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    audit = {
+        "season": 2027,
+        "database_imported": False,
+        "datasets": {"schedule": {"rows": 1}},
+    }
+    (folder / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (folder / "quality-audit.json").write_text(json.dumps(audit), encoding="utf-8")
+
+
+def test_validate_manifest_requires_matching_audit(tmp_path: Path) -> None:
+    write_valid_import_metadata(tmp_path)
     assert _validate_manifest(tmp_path)["season"] == 2027
 
+    audit = json.loads((tmp_path / "quality-audit.json").read_text(encoding="utf-8"))
+    audit["datasets"]["schedule"]["rows"] = 2
+    (tmp_path / "quality-audit.json").write_text(json.dumps(audit), encoding="utf-8")
+    with pytest.raises(ValueError, match="row count does not match"):
+        _validate_manifest(tmp_path)
+
+
+def test_validate_manifest_rejects_unvalidated_season(tmp_path: Path) -> None:
+    write_valid_import_metadata(tmp_path)
+    manifest = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
+    manifest["datasets"][0]["season_validation"] = "partition_tag_only"
+    (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(ValueError, match="not fully validated"):
+        _validate_manifest(tmp_path)
+
+
+def test_validate_manifest_requires_history_disabled(tmp_path: Path) -> None:
+    write_valid_import_metadata(tmp_path)
+    manifest = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
     manifest["historical_data_enabled"] = True
     (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     with pytest.raises(ValueError, match="historical data"):
