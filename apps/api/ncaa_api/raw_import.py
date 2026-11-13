@@ -72,7 +72,10 @@ def _json_value(value: Any) -> Any:
 
 def _normalize_database_url(database_url: str) -> str:
     """Select the installed psycopg 3 SQLAlchemy dialect explicitly."""
-    database_url = _normalize_database_url(database_url)
+    if database_url.startswith("postgresql://"):
+        database_url = "postgresql+psycopg://" + database_url.removeprefix("postgresql://")
+    if not database_url.startswith("postgresql+psycopg://"):
+        raise ValueError("Raw import currently requires PostgreSQL with psycopg 3.")
     return database_url
 
 
@@ -144,10 +147,7 @@ def import_staged_raw(
     batch_size: int = 500,
 ) -> dict[str, Any]:
     """Import validated 2026-27 provider rows to PostgreSQL JSONB, idempotently."""
-    if database_url.startswith("postgresql://"):
-        database_url = "postgresql+psycopg://" + database_url.removeprefix("postgresql://")
-    if not database_url.startswith("postgresql+psycopg://"):
-        raise ValueError("Raw import currently requires PostgreSQL with psycopg 3.")
+    database_url = _normalize_database_url(database_url)
     if batch_size < 1 or batch_size > 5_000:
         raise ValueError("batch_size must be between 1 and 5000.")
 
