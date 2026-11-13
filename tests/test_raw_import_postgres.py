@@ -47,20 +47,26 @@ def test_postgres_raw_import_is_idempotent(tmp_path: Path) -> None:
         assert second["inserted_rows_total"] == 0
         assert second["already_present_rows_total"] == 2
 
-        count = engine.connect().execute(
-            text("""
-                SELECT COUNT(*) FROM ncaa_raw_rows
-                WHERE dataset = 'schedule' AND source_file = 'ncaa_mbb_schedule_2027.parquet'
-            """)
-        ).scalar_one()
-        assert count == 2
-    finally:
-        with engine.begin() as connection:
-            connection.execute(
+        with engine.connect() as connection:
+            count = connection.execute(
                 text("""
-                    DELETE FROM ncaa_raw_rows
+                    SELECT COUNT(*) FROM ncaa_raw_rows
                     WHERE dataset = 'schedule'
                       AND source_file = 'ncaa_mbb_schedule_2027.parquet'
                 """)
-            )
+            ).scalar_one()
+        assert count == 2
+    finally:
+        with engine.begin() as connection:
+            table_exists = connection.execute(
+                text("SELECT to_regclass('public.ncaa_raw_rows')")
+            ).scalar_one()
+            if table_exists:
+                connection.execute(
+                    text("""
+                        DELETE FROM ncaa_raw_rows
+                        WHERE dataset = 'schedule'
+                          AND source_file = 'ncaa_mbb_schedule_2027.parquet'
+                    """)
+                )
         engine.dispose()
