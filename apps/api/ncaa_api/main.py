@@ -22,8 +22,8 @@ def coverage() -> dict[str, object]:
         SourceHealth.make(
             "sportsdataverse",
             "SportsDataverse NCAA MBB",
-            "not_configured",
-            message="Source catalogued; live dataset retrieval and coverage validation are pending.",
+            "not_checked",
+            message="Release assets were verified in the repository; this API process has not yet downloaded or validated their contents.",
             documentation_url="https://github.com/sportsdataverse/ncaa-mbb-hoops-data",
         ).as_dict(),
         SourceHealth.make(
