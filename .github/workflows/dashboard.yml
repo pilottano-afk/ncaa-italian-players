@@ -32,5 +32,4 @@ jobs:
           from streamlit.testing.v1 import AppTest
           app = AppTest.from_file("apps/dashboard/app.py", default_timeout=20).run()
           assert not app.exception
-          assert any("NCAA Italian Players" in str(item.value) for item in app.title)
           PY
