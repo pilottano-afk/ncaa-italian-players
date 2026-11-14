@@ -1,0 +1,36 @@
+name: Dashboard checks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/dashboard/**"
+      - ".github/workflows/dashboard.yml"
+  pull_request:
+    paths:
+      - "apps/dashboard/**"
+      - ".github/workflows/dashboard.yml"
+  workflow_dispatch:
+
+jobs:
+  dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dashboard dependencies
+        run: python -m pip install -r apps/dashboard/requirements.txt
+      - name: Compile dashboard
+        run: python -m py_compile apps/dashboard/app.py
+      - name: Smoke test Streamlit app
+        env:
+          NCAA_API_URL: http://127.0.0.1:9
+        run: |
+          python - <<'PY'
+          from streamlit.testing.v1 import AppTest
+          app = AppTest.from_file("apps/dashboard/app.py", default_timeout=20).run()
+          assert not app.exception
+          assert any("NCAA Italian Players" in str(item.value) for item in app.title)
+          PY
