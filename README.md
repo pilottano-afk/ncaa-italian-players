@@ -2,6 +2,30 @@
 
 Piattaforma di analisi del basket NCAA maschile, focalizzata sui giocatori italiani e sui migliori 30 prospetti assoluti del Draft NBA 2027.
 
+## App dashboard
+
+La prima interfaccia Streamlit è disponibile in `apps/dashboard/app.py`. Include:
+- Dashboard di stato API e copertura fonti.
+- Navigazione Giocatori italiani, Squadre e Partite.
+- Top 30 NBA Draft 2027 con ricerca.
+- Stato delle fonti e regole di qualità.
+
+Le sezioni statistiche non mostrano numeri fittizi: restano esplicitamente in attesa del database e delle API analitiche. La dashboard legge il ranking Draft dal documento versionato nel repository.
+
+### Avvio dashboard
+
+```bash
+pip install -r apps/dashboard/requirements.txt
+NCAA_API_URL=http://localhost:8000 streamlit run apps/dashboard/app.py
+```
+
+Oppure avviare il container dashboard:
+
+```bash
+docker build -f apps/dashboard/Dockerfile -t ncaa-dashboard .
+docker run --rm -p 8501:8501 -e NCAA_API_URL=http://host.docker.internal:8000 ncaa-dashboard
+```
+
 ## Ambito dati
 
 - **Stagione inclusa:** NCAA 2026-27 (season key `2027`).
@@ -22,61 +46,16 @@ Piattaforma di analisi del basket NCAA maschile, focalizzata sui giocatori itali
 - SportsDataverse `ncaa-mbb-hoops-data` / hoopR.
 - CollegeBasketballData.com (API key necessaria).
 - Siti ufficiali NCAA e roster ufficiali delle università per la verifica dei giocatori.
-- RealGM come fonte di scoperta, non come unica prova di appartenenza a Division I.
 
 Le fonti sono candidate: la disponibilità effettiva della stagione 2026-27 e dei singoli campi va verificata prima di considerarli utilizzabili.
 
 ## Stato
 
-Base backend e staging real-data implementati. I dataset SportsDataverse 2026-27 sono stati scaricati e sottoposti a controlli di stagione, null, chiavi candidate e copertura dei join. Il database non è ancora stato popolato; il prossimo passaggio è l'importazione grezza controllata in PostgreSQL.
+La prima dashboard navigabile è stata aggiunta. Il backend API e la pipeline di staging/audit sono presenti; il database non è ancora popolato e le API analitiche non sono ancora disponibili. La dashboard rende visibile questo stato senza simulare statistiche.
 
-## Stack previsto
+## Stack
 
-- Backend: Python.
+- Backend: Python / FastAPI.
+- Dashboard iniziale: Streamlit.
 - Database: PostgreSQL.
-- Frontend: TypeScript / Next.js.
 - Aggiornamento: processo schedulato giornaliero, con controllo di freschezza e report degli errori.
-
-## Avvio
-
-Le istruzioni di sviluppo saranno aggiunte insieme ai primi componenti eseguibili. Non configurare API key o credenziali nel repository: usare variabili d'ambiente e `.env` locale escluso da Git.
-
-## Local development
-
-Requirements: Docker Desktop or Docker Engine with the Compose plugin.
-
-```bash
-docker compose up --build
-```
-
-To download and inspect the first real 2026-27 data files (schedule, rosters and player box scores):
-
-```bash
-ncaa-stage
-```
-
-The files and a validation manifest are written under `data/staging/2027/`. This is a staging step, not yet a PostgreSQL import. You can request additional datasets, for example `ncaa-stage --datasets lineups possessions shots`.
-
-To audit the staged Parquet files:
-
-```bash
-ncaa-audit --input data/staging/2027 --output data/staging/2027/quality-audit.json
-```
-
-After downloading the complete staging artifact (including `manifest.json` and `quality-audit.json`), the conservative PostgreSQL JSONB import is documented in [the raw import guide](docs/raw-import-guide.md). The importer rejects historical, null-season, or unaudited records and preserves source rows without assuming relational keys.
-
-Then open:
-- API health: http://localhost:8000/health
-- API source/coverage status: http://localhost:8000/api/v1/coverage
-- Interactive API docs: http://localhost:8000/docs
-
-To run tests without Docker:
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -e ".[dev]"
-python -m pytest -q
-```
-
-For CollegeBasketballData.com, copy `.env.example` to `.env` and add your API key locally. Never commit `.env`. The key is optional while working with the public SportsDataverse release assets.
