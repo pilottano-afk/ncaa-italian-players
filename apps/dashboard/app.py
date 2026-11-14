@@ -78,11 +78,25 @@ if page == "Dashboard":
     st.subheader("Panoramica stagione")
     status_panel()
     coverage, coverage_error = get_json("/api/v1/coverage")
+    database = coverage.get("database", {}) if coverage else {}
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Stagione", "2026-27")
     c2.metric("Storico", "Disattivato")
     c3.metric("Fonti catalogate", str(len(coverage.get("sources", []))) if coverage else "—")
-    c4.metric("Database", "Da collegare")
+    c4.metric("Righe nel database", f"{database.get('rows_total', 0):,}" if database else "—")
+    if database:
+        if database.get("status") == "connected":
+            st.success("Database collegato · dati reali presenti")
+        elif database.get("status") == "connected_empty":
+            st.info("Database collegato, ma l’importazione dei dataset non è ancora stata eseguita.")
+        else:
+            st.warning("Database non ancora pronto o non raggiungibile.")
+        imported = database.get("datasets", [])
+        if imported:
+            st.markdown("#### Dataset NCAA 2026-27 effettivamente importati")
+            st.dataframe(pd.DataFrame(imported), hide_index=True, use_container_width=True)
+        elif database.get("message"):
+            st.caption(database["message"])
     st.divider()
     left, right = st.columns([1.35, 1])
     with left:
