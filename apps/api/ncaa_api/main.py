@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Query
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -81,6 +81,60 @@ def database_datasets() -> dict[str, object]:
         "imported_datasets": summary.get("datasets", []),
         "status": summary["status"],
     }
+
+
+@app.get("/api/v1/raw/{dataset}")
+def raw_dataset(
+    dataset: str,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> dict[str, object]:
+    """Browse original imported records without guessing provider field semantics."""
+    if dataset not in DATASETS:
+        raise HTTPException(status_code=404, detail="Dataset NCAA non riconosciuto.")
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        raise HTTPException(status_code=503, detail="Database non configurato.")
+    if database_url.startswith("postgresql://"):
+        database_url = "postgresql+psycopg://" + database_url.removeprefix("postgresql://")
+    engine = create_engine(database_url, pool_pre_ping=True)
+    try:
+        with engine.connect() as connection:
+            total = connection.execute(
+                text("SELECT COUNT(*) FROM ncaa_raw_rows WHERE season = 2027 AND dataset = :dataset"),
+                {"dataset": dataset},
+            ).scalar_one()
+            rows = connection.execute(
+                text("""
+                    SELECT source_file, artifact_sha256, source_row_number, imported_at, payload
+                    FROM ncaa_raw_rows
+                    WHERE season = 2027 AND dataset = :dataset
+                    ORDER BY source_row_number
+                    LIMIT :limit OFFSET :offset
+                """),
+                {"dataset": dataset, "limit": limit, "offset": offset},
+            ).mappings().all()
+        return {
+            "season": 2027,
+            "dataset": dataset,
+            "total": int(total),
+            "limit": limit,
+            "offset": offset,
+            "records": [
+                {
+                    "source_file": row["source_file"],
+                    "artifact_sha256": row["artifact_sha256"],
+                    "source_row_number": row["source_row_number"],
+                    "imported_at": row["imported_at"].isoformat(),
+                    "payload": row["payload"],
+                }
+                for row in rows
+            ],
+        }
+    except SQLAlchemyError as exc:
+        raise HTTPException(status_code=503, detail="Tabella dati grezzi non disponibile: " + str(exc).splitlines()[0][:180]) from exc
+    finally:
+        engine.dispose()
 
 
 @app.get("/api/v1/coverage")
