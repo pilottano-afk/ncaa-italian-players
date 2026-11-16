@@ -63,7 +63,7 @@ def draft_data():
     if not DRAFT_FILE.exists():return pd.DataFrame(columns=["Rank","Prospect","Team / club"])
     rows=[]
     for line in DRAFT_FILE.read_text(encoding="utf-8").splitlines():
-        m=re.match(r"\\|\\s*(\\d+)\\s*\\|\\s*(.*?)\\s*\\|\\s*(.*?)\\s*\\|",line)
+        m=re.match(r"\|\s*(\d+)\s*\|\s*(.*?)\s*\|\s*(.*?)\s*\|",line)
         if m:rows.append({"Rank":int(m.group(1)),"Prospect":m.group(2),"Team / club":m.group(3)})
     return pd.DataFrame(rows)
 
