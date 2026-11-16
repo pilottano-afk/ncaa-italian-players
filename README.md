@@ -26,6 +26,23 @@ docker build -f apps/dashboard/Dockerfile -t ncaa-dashboard .
 docker run --rm -p 8501:8501 -e NCAA_API_URL=http://host.docker.internal:8000 ncaa-dashboard
 ```
 
+## Importazione nel database cloud
+
+È presente il workflow GitHub Actions `Import NCAA 2026-27 data into PostgreSQL`:
+1. Crea un database PostgreSQL gestito da un provider cloud.
+2. Nel repository apri **Settings → Secrets and variables → Actions** e aggiungi il secret `NCAA_DATABASE_URL` con la stringa di connessione PostgreSQL (preferibilmente SSL).
+3. Apri **Actions → Import NCAA 2026-27 data into PostgreSQL → Run workflow**.
+4. Il workflow scarica i dataset della sola stagione 2026-27, controlla manifest e qualità, quindi importa le righe originali in JSONB. L'importazione è idempotente: rieseguire lo stesso artefatto non duplica le righe.
+5. Quando l'API è collegata allo stesso database, la dashboard mostra il conteggio effettivo e consente di esplorare i record originali nella sezione **Fonti e dati**.
+
+Il workflow non crea automaticamente un database né pubblica l'app: il database cloud e il relativo secret devono essere configurati una volta. Non inserire mai la stringa di connessione nel codice o nei file del repository.
+
+## API dati grezzi
+
+- `GET /api/v1/database/summary` — copertura effettivamente importata.
+- `GET /api/v1/database/datasets` — dataset disponibili e dataset importati.
+- `GET /api/v1/raw/{dataset}?limit=25&offset=0` — anteprima paginata dei record originali della stagione 2026-27.
+
 ## Ambito dati
 
 - **Stagione inclusa:** NCAA 2026-27 (season key `2027`).
