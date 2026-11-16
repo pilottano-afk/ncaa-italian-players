@@ -1,78 +1,57 @@
 # NCAA Italian Players
 
-Piattaforma di analisi del basket NCAA maschile, focalizzata sui giocatori italiani e sui migliori 30 prospetti assoluti del Draft NBA 2027.
+Dashboard di analisi NCAA maschile, con directory dei giocatori italiani e Top 30 assoluta NBA Draft 2027.
 
-## App dashboard
+## Pubblicazione gratuita: Neon + Streamlit Community Cloud
 
-La prima interfaccia Streamlit è disponibile in `apps/dashboard/app.py`. Include:
-- Dashboard di stato API e copertura fonti.
-- Navigazione Giocatori italiani, Squadre e Partite.
-- Top 30 NBA Draft 2027 con ricerca.
-- Stato delle fonti e regole di qualità.
+Architettura: Neon per PostgreSQL, Streamlit Community Cloud per la dashboard e GitHub Actions per importare i dati. La dashboard si collega direttamente a PostgreSQL, quindi non serve pubblicare un server API separato per visualizzare copertura e record grezzi.
 
-Le sezioni statistiche non mostrano numeri fittizi: restano esplicitamente in attesa del database e delle API analitiche. La dashboard legge il ranking Draft dal documento versionato nel repository.
+### 1. Crea il database Neon
+1. Apri https://neon.tech/ e crea un account gratuito.
+2. Crea un progetto PostgreSQL, scegliendo una regione europea se disponibile.
+3. Apri **Connect** e copia la stringa PostgreSQL (preferibilmente la variante pooled). Non condividerla pubblicamente.
 
-### Avvio dashboard
+### 2. Collega Neon a GitHub Actions
+Nel repository apri **Settings → Secrets and variables → Actions → New repository secret**.
+- Nome: **NCAA_DATABASE_URL**
+- Valore: la stringa di connessione copiata da Neon.
 
-```bash
-pip install -r apps/dashboard/requirements.txt
-NCAA_API_URL=http://localhost:8000 streamlit run apps/dashboard/app.py
-```
+Poi apri **Actions → Import NCAA 2026-27 data into PostgreSQL → Run workflow**. Il workflow importa esclusivamente la stagione 2026-27 e conserva i record originali con provenienza. Il workflow non crea il database.
 
-Oppure avviare il container dashboard:
+### 3. Pubblica la dashboard
+1. Apri https://share.streamlit.io/ e accedi con GitHub.
+2. Seleziona **Create app**.
+3. Repository: **pilottano-afk/ncaa-italian-players**.
+4. Branch: **main**.
+5. Main file path: **apps/dashboard/app.py**.
+6. Crea l'app.
+7. Nelle impostazioni dell'app apri **Secrets** e inserisci:
 
-```bash
-docker build -f apps/dashboard/Dockerfile -t ncaa-dashboard .
-docker run --rm -p 8501:8501 -e NCAA_API_URL=http://host.docker.internal:8000 ncaa-dashboard
-```
+   DATABASE_URL = "INCOLLA_QUI_LA_STRINGA_DI_NEON"
 
-## Importazione nel database cloud
+   Il valore va inserito nel pannello Secrets, mai nel codice o nel repository. Salva e riavvia l'app se richiesto.
 
-È presente il workflow GitHub Actions `Import NCAA 2026-27 data into PostgreSQL`:
-1. Crea un database PostgreSQL gestito da un provider cloud.
-2. Nel repository apri **Settings → Secrets and variables → Actions** e aggiungi il secret `NCAA_DATABASE_URL` con la stringa di connessione PostgreSQL (preferibilmente SSL).
-3. Apri **Actions → Import NCAA 2026-27 data into PostgreSQL → Run workflow**.
-4. Il workflow scarica i dataset della sola stagione 2026-27, controlla manifest e qualità, quindi importa le righe originali in JSONB. L'importazione è idempotente: rieseguire lo stesso artefatto non duplica le righe.
-5. Quando l'API è collegata allo stesso database, la dashboard mostra il conteggio effettivo e consente di esplorare i record originali nella sezione **Fonti e dati**.
+### Cosa offre la dashboard
+- Stato e conteggi reali del database.
+- Esplorazione paginata dei record originali con provenienza.
+- Top 30 Draft NBA 2027 separato dalla directory dei giocatori italiani.
+- Nessuna statistica simulata.
 
-Il workflow non crea automaticamente un database né pubblica l'app: il database cloud e il relativo secret devono essere configurati una volta. Non inserire mai la stringa di connessione nel codice o nei file del repository.
+### Limiti del piano gratuito
+I limiti di spazio e utilizzo possono cambiare. Play-by-play, possessi e tiri possono occupare molto spazio: controlla il consumo Neon dopo l'importazione e non passare a un piano a pagamento senza aver verificato i costi.
 
 ## API dati grezzi
+Il backend API resta nel repository per sviluppi futuri:
+- GET /api/v1/database/summary
+- GET /api/v1/database/datasets
+- GET /api/v1/raw/{dataset}?limit=25&offset=0
 
-- `GET /api/v1/database/summary` — copertura effettivamente importata.
-- `GET /api/v1/database/datasets` — dataset disponibili e dataset importati.
-- `GET /api/v1/raw/{dataset}?limit=25&offset=0` — anteprima paginata dei record originali della stagione 2026-27.
-
-## Ambito dati
-
-- **Stagione inclusa:** NCAA 2026-27 (season key `2027`).
-- **Storico:** escluso. Il progetto non deve importare o mostrare stagioni precedenti.
-- **Dati:** solo dati reali provenienti da fonti verificabili. Nessun dato simulato.
-- **Copertura:** giocatori italiani NCAA; prospetti Draft NBA 2027 di qualsiasi nazionalità in una sezione distinta.
-
-## Principi di qualità
-
-1. Conservare la provenienza e l'ora di acquisizione di ogni dato.
-2. Distinguere valori mancanti, dati non verificati e valori pari a zero.
-3. Non dedurre la nazionalità dal solo nome: mantenere una verifica esplicita della fonte.
-4. Non confondere i 30 prospetti Draft con la lista dei giocatori italiani.
-5. Calcolare metriche avanzate solo quando i dati grezzi necessari sono disponibili.
-
-## Fonti candidate
-
-- SportsDataverse `ncaa-mbb-hoops-data` / hoopR.
-- CollegeBasketballData.com (API key necessaria).
-- Siti ufficiali NCAA e roster ufficiali delle università per la verifica dei giocatori.
-
-Le fonti sono candidate: la disponibilità effettiva della stagione 2026-27 e dei singoli campi va verificata prima di considerarli utilizzabili.
+## Ambito e qualità
+- Solo NCAA 2026-27 (season key 2027), nessuno storico.
+- Dati reali e verificabili; nessun dato simulato.
+- Nazionalità italiana verificata tramite fonti ufficiali, mai dedotta dal nome.
+- Provenienza e timestamp conservati.
+- Metriche avanzate calcolate solo quando i dati necessari sono disponibili.
 
 ## Stato
-
-La prima dashboard navigabile è stata aggiunta. Il backend API e la pipeline di staging/audit sono presenti; il database non è ancora popolato e le API analitiche non sono ancora disponibili. La dashboard rende visibile questo stato senza simulare statistiche.
-
-## Stack
-
-- Backend: Python / FastAPI.
-- Dashboard iniziale: Streamlit.
-- Database: PostgreSQL.
-- Aggiornamento: processo schedulato giornaliero, con controllo di freschezza e report degli errori.
+La dashboard è predisposta per PostgreSQL diretto. Database cloud, importazione e pubblicazione richiedono la configurazione degli account e dei Secrets sopra descritta.
