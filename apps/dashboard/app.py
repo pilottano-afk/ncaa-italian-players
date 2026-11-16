@@ -167,6 +167,28 @@ elif page == "Fonti e dati":
     else:
         st.warning("Il backend non è ancora raggiungibile dalla dashboard.")
         st.caption(error or "")
+    st.markdown("#### Esplora i record originali")
+    st.caption("Questa vista legge i record effettivamente importati in PostgreSQL e conserva i campi originali del provider.")
+    dataset = st.selectbox("Dataset", ["schedule", "team_rosters", "rosters", "pbp", "player_box", "team_box", "lineups", "matchup_stints", "possessions", "shots", "team_ids"])
+    page_size = st.select_slider("Record per pagina", options=[10, 25, 50, 100, 200], value=25)
+    page_number = st.number_input("Pagina", min_value=1, value=1, step=1)
+    if st.button("Carica record", type="primary"):
+        st.session_state["raw_preview_request"] = (dataset, page_size, page_number)
+    if "raw_preview_request" in st.session_state:
+        selected_dataset, selected_size, selected_page = st.session_state["raw_preview_request"]
+        raw, raw_error = get_json(f"/api/v1/raw/{selected_dataset}?limit={selected_size}&offset={(selected_page - 1) * selected_size}")
+        if raw:
+            st.caption(f"{raw['total']:,} record totali · pagina {selected_page} · stagione 2026-27")
+            if raw.get("records"):
+                frame = pd.json_normalize([item["payload"] for item in raw["records"]])
+                st.dataframe(frame, hide_index=True, use_container_width=True, height=420)
+                with st.expander("Provenienza dei record visualizzati"):
+                    provenance = [{key: item[key] for key in ("source_file", "artifact_sha256", "source_row_number", "imported_at")} for item in raw["records"]]
+                    st.dataframe(pd.DataFrame(provenance), hide_index=True, use_container_width=True)
+            else:
+                st.info("Nessun record importato per questo dataset.")
+        else:
+            st.warning(raw_error or "Il backend non ha restituito i record.")
     st.markdown("#### Regole di qualità")
     st.write("• Solo stagione 2026-27 · • Nessuno storico · • Zero distinto da dato mancante · • Nazionalità documentata · • Provenienza e timestamp conservati.")
 
