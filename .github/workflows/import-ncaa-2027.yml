@@ -2,12 +2,6 @@ name: Import NCAA 2026-27 data into PostgreSQL
 
 on:
   workflow_dispatch:
-    inputs:
-      refresh:
-        description: Download the latest provider release before importing
-        required: true
-        type: boolean
-        default: true
 
 permissions:
   contents: read
@@ -43,14 +37,12 @@ jobs:
         run: python -m pip install -e .
 
       - name: Download and validate current-season datasets
-        if: inputs.refresh
         run: >-
           ncaa-stage --datasets schedule team_rosters rosters pbp player_box team_box
           lineups matchup_stints possessions shots team_ids
           --output data/staging/2027
 
       - name: Audit source rows before database writes
-        if: inputs.refresh
         run: >-
           ncaa-audit --input data/staging/2027
           --output data/staging/2027/quality-audit.json
