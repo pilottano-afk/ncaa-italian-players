@@ -4,9 +4,11 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 from sqlalchemy import create_engine, text
+from dotenv import load_dotenv
 
 st.set_page_config(page_title="NCAA Italian Players", page_icon="🏀", layout="wide")
 ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(ROOT / ".env.local", override=False)
 DRAFT_FILE = ROOT / "docs" / "nba-draft-2027-top-30.md"
 SEASON = 2027
 DATASETS = ["schedule","team_rosters","rosters","pbp","player_box","team_box","lineups","matchup_stints","possessions","shots","team_ids"]
