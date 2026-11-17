@@ -6,8 +6,10 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
-from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
+from sqlalchemy import create_engine, text
+
+from analytics import player_season_stats, team_season_stats
 
 st.set_page_config(page_title="NCAA Italian Players", page_icon="🏀", layout="wide")
 ROOT = Path(__file__).resolve().parents[2]
@@ -18,7 +20,7 @@ DATASETS = ["schedule", "team_rosters", "rosters", "pbp", "player_box", "team_bo
             "lineups", "matchup_stints", "possessions", "shots", "team_ids"]
 
 st.markdown("""<style>
-.block-container{padding-top:1.5rem;max-width:1500px}
+.block-container{padding-top:1.4rem;max-width:1500px}
 .hero{padding:1.5rem 1.8rem;border-radius:18px;background:linear-gradient(115deg,#101c35,#193d63);color:white;margin-bottom:1.2rem}
 .hero h1{font-size:2.15rem;margin:0 0 .35rem;color:white}.hero p{font-size:1rem;opacity:.88;margin:0}
 div[data-testid="stMetric"]{background:rgba(120,140,170,.09);padding:12px;border-radius:12px}
@@ -26,11 +28,13 @@ div[data-testid="stMetric"]{background:rgba(120,140,170,.09);padding:12px;border
 
 st.sidebar.title("🏀 NCAA Italian Players")
 page = st.sidebar.radio("Navigazione", [
-    "Dashboard", "Analisi giocatori", "Analisi squadre", "Partite",
-    "Giocatori italiani", "Draft NBA 2027", "Fonti e dati"
+    "Dashboard", "Analisi giocatori", "Scheda giocatore", "Analisi squadre",
+    "Partite", "Roster NCAA", "Giocatori italiani", "Quintetti e tiri",
+    "Draft NBA 2027", "Fonti e dati"
 ])
 st.sidebar.caption("Stagione attiva: 2026-27 · season=2027")
 st.sidebar.caption("Dati storici esclusi")
+
 
 def db_url():
     value = os.getenv("DATABASE_URL") or os.getenv("NCAA_DATABASE_URL")
@@ -48,10 +52,12 @@ def db_url():
         value = "postgresql+psycopg://" + value[len("postgresql://"):]
     return value
 
+
 @st.cache_resource(show_spinner=False)
 def engine(url):
     return create_engine(url, pool_pre_ping=True, pool_size=1, max_overflow=0,
                          connect_args={"connect_timeout": 8})
+
 
 def query(sql, params=None):
     url = db_url()
@@ -62,6 +68,7 @@ def query(sql, params=None):
             return conn.execute(text(sql), params or {}).mappings().all(), None
     except Exception as exc:
         return None, f"Database non raggiungibile ({exc.__class__.__name__}). Verifica Neon e l'importazione."
+
 
 @st.cache_data(ttl=300, show_spinner=False)
 def summary():
@@ -74,6 +81,7 @@ def summary():
              "last_imported": r["last_imported"].isoformat() if r["last_imported"] else None}
             for r in rows]
     return {"rows_total": sum(x["rows"] for x in data), "datasets": data}, None
+
 
 @st.cache_data(ttl=300, show_spinner=False)
 def load_dataset(dataset):
@@ -89,6 +97,7 @@ def load_dataset(dataset):
         return pd.DataFrame(), None
     return pd.json_normalize([dict(r["payload"]) for r in rows]), None
 
+
 def draft_data():
     if not DRAFT_FILE.exists():
         return pd.DataFrame(columns=["Rank", "Prospect", "Team / club"])
@@ -100,61 +109,17 @@ def draft_data():
                          "Team / club": match.group(3)})
     return pd.DataFrame(rows)
 
+
 def first_column(frame, candidates):
     return next((name for name in candidates if name in frame.columns), None)
 
-def numeric(frame, candidates):
-    name = first_column(frame, candidates)
-    if not name:
-        return None
-    return pd.to_numeric(frame[name], errors="coerce")
 
-def player_leaderboard(frame):
-    name_col = first_column(frame, ["clean_name", "player", "name", "athlete_display_name"])
-    id_col = first_column(frame, ["player_id", "ncaa_player_id"])
-    if not name_col:
-        return pd.DataFrame(), "Il dataset non contiene un campo nome giocatore riconosciuto."
-    frame = frame.copy()
-    frame["_player"] = frame[name_col].fillna("Giocatore non identificato").astype(str)
-    if id_col:
-        frame["_id"] = frame[id_col].astype(str)
-        keys = ["_id", "_player"]
-    else:
-        keys = ["_player"]
-    metrics = {
-        "Partite": ["contest_id"],
-        "Minuti": ["mins", "minutes"],
-        "Punti": ["pts", "points"],
-        "Rimbalzi offensivi": ["orb", "oreb"],
-        "Rimbalzi difensivi": ["drb", "dreb"],
-        "Assist": ["ast", "assists"],
-        "Palle rubate": ["stl", "steals"],
-        "Stoppate": ["blk", "blocks"],
-        "Palle perse": ["tov", "turnovers"],
-        "TS%": ["ts_pct"], "eFG%": ["efg_pct"],
-        "FG%": ["fg_pct"], "3P%": ["tp_pct"], "FT%": ["ft_pct"],
-        "Possessi offensivi": ["o_poss"],
-    }
-    usable = {}
-    for label, aliases in metrics.items():
-        col = first_column(frame, aliases)
-        if col:
-            usable[label] = col
-    if not usable:
-        return pd.DataFrame(), "Nessuna colonna statistica riconosciuta nel player_box."
-    for label, col in usable.items():
-        frame[label] = pd.to_numeric(frame[col], errors="coerce")
-    aggregations = {label: "mean" for label in usable}
-    if "Partite" in usable:
-        aggregations["Partite"] = "nunique"
-    result = frame.groupby(keys, dropna=False).agg(aggregations).reset_index()
-    result = result.rename(columns={"_player": "Giocatore", "_id": "ID NCAA"})
-    if "Minuti" in result:
-        result = result[result["Minuti"].fillna(0) > 0]
-    for label in ["Punti", "Minuti", "TS%", "eFG%", "FG%", "3P%", "FT%"]:
-        if label in result:
-            result[label] = result[label].round(1)
-    return result, None
+def show_load_error(err):
+    if err:
+        st.warning(err)
+        return True
+    return False
+
 
 st.markdown('<div class="hero"><h1>NCAA Italian Players</h1><p>Basketball intelligence · NCAA Men 2026-27 · Italian player tracker & NBA Draft 2027</p></div>', unsafe_allow_html=True)
 
@@ -177,79 +142,117 @@ if page == "Dashboard":
     st.divider()
     left, right = st.columns([1.3, 1])
     with left:
-        st.markdown("### Sezioni analitiche")
-        st.write("• Leaderboard giocatori con medie per partita e percentuali di tiro")
-        st.write("• Statistiche squadra, risultati e calendario quando presenti nei dati")
-        st.write("• Possessi, quintetti, matchup e tiri: consultabili solo se importati")
-        st.write("• Percentili da pubblicare dopo il controllo della popolazione di confronto")
+        st.markdown("### Analisi disponibili")
+        st.write("• Leaderboard giocatori: medie, totali, percentuali di tiro e percentili con soglia minima.")
+        st.write("• Scheda giocatore: riepilogo stagione e box score partita per partita.")
+        st.write("• Squadre: ratings e indicatori realmente presenti nei dati.")
+        st.write("• Quintetti, matchup e tiri: esplorazione dei dataset originali.")
     with right:
         st.markdown("### Draft NBA 2027")
         prospects = draft_data()
         if not prospects.empty:
             st.dataframe(prospects.head(8), hide_index=True, use_container_width=True)
+            st.caption("Snapshot datato 13 novembre 2026; non è un ordine ufficiale del Draft.")
 
 elif page == "Analisi giocatori":
     st.subheader("Leaderboard giocatori · NCAA 2026-27")
     frame, err = load_dataset("player_box")
-    if err:
-        st.warning(err)
+    if show_load_error(err):
+        pass
     elif frame.empty:
-        st.info("Nessun box score giocatore importato. La classifica si popolerà dai dati reali.")
+        st.info("Nessun box score giocatore importato.")
     else:
-        result, problem = player_leaderboard(frame)
-        if problem:
-            st.warning(problem)
-            st.caption("Campi sorgente rilevati: " + ", ".join(frame.columns[:50]))
+        min_games = st.slider("Partite minime per entrare nei percentili", 1, 20, 5)
+        result, meta = player_season_stats(frame, min_games=min_games)
+        if result.empty:
+            st.warning("I campi del dataset non consentono ancora di calcolare una classifica.")
+            st.caption("Campi sorgente: " + ", ".join(frame.columns[:60]))
         else:
-            c1, c2 = st.columns([1, 1])
+            st.caption(f"{meta['players']:,} identità aggregate · {meta['qualified_players']:,} nel campione percentile · {meta['identity_unresolved']:,} identità senza ID NCAA")
+            st.info("I percentili confrontano i giocatori presenti nei box score importati, con la soglia minima scelta. Non rappresentano ancora una classifica completa di tutta la Division I.")
+            c1, c2 = st.columns(2)
             with c1:
-                metric = st.selectbox("Ordina per", [c for c in result.columns if c not in ["Giocatore", "ID NCAA"]])
+                metric = st.selectbox("Ordina per", [c for c in result.columns if c not in ["ID NCAA", "Giocatore", "Squadra ID", "Identità verificata", "Campione percentile valido"]])
             with c2:
                 search = st.text_input("Cerca giocatore")
+            view = result.copy()
             if search:
-                result = result[result["Giocatore"].str.contains(search, case=False, na=False)]
-            result = result.sort_values(metric, ascending=False, na_position="last")
-            st.caption(f"{len(result):,} giocatori aggregati · medie per partita ove applicabile · stagione 2026-27")
-            st.dataframe(result, hide_index=True, use_container_width=True, height=650)
-            if metric in result and result[metric].notna().sum() >= 2:
-                st.markdown("#### Distribuzione della metrica selezionata")
-                st.bar_chart(result.set_index("Giocatore")[[metric]].head(20))
+                view = view[view["Giocatore"].str.contains(search, case=False, na=False)]
+            view = view.sort_values(metric, ascending=False, na_position="last")
+            st.dataframe(view, hide_index=True, use_container_width=True, height=650)
+            if metric in view and view[metric].notna().sum() >= 2:
+                st.markdown("#### Primi 20 · " + metric)
+                st.bar_chart(view.set_index("Giocatore")[[metric]].head(20))
+            st.caption("TS% = PTS / [2 × (FGA + 0,44 × FTA)]. eFG% = (FGM + 0,5 × 3PM) / FGA. Le percentuali sono ricalcolate dai totali stagionali.")
+
+elif page == "Scheda giocatore":
+    st.subheader("Scheda giocatore · stagione 2026-27")
+    frame, err = load_dataset("player_box")
+    if show_load_error(err):
+        pass
+    elif frame.empty:
+        st.info("Nessun box score importato.")
+    else:
+        result, meta = player_season_stats(frame, min_games=1)
+        if result.empty:
+            st.warning("Non è ancora possibile costruire le schede dai campi disponibili.")
+        else:
+            names = sorted(result["Giocatore"].dropna().unique().tolist())
+            selected = st.selectbox("Seleziona giocatore", names)
+            row = result[result["Giocatore"] == selected].iloc[0]
+            stats = ["Partite", "Minuti per partita", "Punti per partita", "Assist per partita",
+                     "Rimbalzi offensivi per partita", "Rimbalzi difensivi per partita",
+                     "TS%", "eFG%", "3P%", "FT%"]
+            available = [s for s in stats if s in result.columns]
+            cols = st.columns(min(5, len(available)))
+            for i, stat in enumerate(available):
+                value = row[stat]
+                label = stat
+                if stat.endswith("%") and pd.notna(value):
+                    value = f"{float(value) * 100:.1f}%"
+                elif pd.notna(value):
+                    value = f"{float(value):.1f}" if stat != "Partite" else str(int(value))
+                else:
+                    value = "n/d"
+                cols[i % len(cols)].metric(label, value)
+            st.caption("ID NCAA: " + (str(row["ID NCAA"]) if pd.notna(row["ID NCAA"]) else "non risolto") +
+                       " · Identità verificata: " + ("sì" if row["Identità verificata"] else "no"))
+            id_col = first_column(frame, ["player_id", "ncaa_player_id"])
+            name_col = first_column(frame, ["clean_name", "player", "name", "athlete_display_name"])
+            if id_col and pd.notna(row["ID NCAA"]):
+                game_log = frame[frame[id_col].astype("string") == str(row["ID NCAA"])].copy()
+            else:
+                team_col = first_column(frame, ["team_ncaa_team_id", "team_id", "team"])
+                game_log = frame[frame[name_col].astype(str) == selected].copy()
+                if team_col and pd.notna(row["Squadra ID"]):
+                    game_log = game_log[game_log[team_col].astype(str) == str(row["Squadra ID"])]
+            st.markdown("#### Box score partita per partita")
+            st.dataframe(game_log, hide_index=True, use_container_width=True, height=500)
 
 elif page == "Analisi squadre":
     st.subheader("Analisi squadre · NCAA 2026-27")
     frame, err = load_dataset("team_box")
-    if err:
-        st.warning(err)
+    if show_load_error(err):
+        pass
     elif frame.empty:
         st.info("Nessun box score squadra importato.")
     else:
-        team_col = first_column(frame, ["team", "team_name", "team_display_name", "school"])
-        id_col = first_column(frame, ["team_ncaa_team_id", "team_id"])
-        if not team_col and not id_col:
-            st.warning("Il box score non espone un identificativo squadra riconosciuto.")
+        table, meta = team_season_stats(frame)
+        if table.empty:
+            st.warning("Non è stato trovato un identificativo squadra riconosciuto.")
             st.caption("Campi disponibili: " + ", ".join(frame.columns[:60]))
         else:
-            key = team_col or id_col
-            frame = frame.copy()
-            frame["_team"] = frame[key].fillna("Squadra non identificata").astype(str)
-            preferred = ["possessions", "ORtg", "DRtg", "NetRtg", "efg_pct", "ts_pct",
-                         "orb_pct", "drb_pct", "tov_pct", "pts"]
-            cols = [c for c in preferred if c in frame.columns]
-            for col in cols:
-                frame[col] = pd.to_numeric(frame[col], errors="coerce")
-            if cols:
-                table = frame.groupby("_team")[cols].mean(numeric_only=True).round(2).reset_index()
-                st.dataframe(table.rename(columns={"_team": "Squadra"}), hide_index=True,
-                             use_container_width=True, height=650)
-            else:
-                st.warning("Colonne avanzate non ancora riconosciute.")
-                st.dataframe(frame.head(100), hide_index=True, use_container_width=True)
+            st.caption(f"{meta['teams']} squadre aggregate da {meta['source_rows']:,} record partita.")
+            cols = [c for c in table.columns if c != "Squadra ID"]
+            metric = st.selectbox("Ordina per indicatore", cols)
+            table = table.sort_values(metric, ascending=False, na_position="last")
+            st.dataframe(table, hide_index=True, use_container_width=True, height=650)
 
 elif page == "Partite":
     st.subheader("Calendario e risultati · NCAA 2026-27")
     frame, err = load_dataset("schedule")
-    if err:
-        st.warning(err)
+    if show_load_error(err):
+        pass
     elif frame.empty:
         st.info("Nessun calendario importato.")
     else:
@@ -257,13 +260,80 @@ elif page == "Partite":
         if search:
             mask = frame.astype(str).apply(lambda col: col.str.contains(search, case=False, na=False)).any(axis=1)
             frame = frame[mask]
-        st.caption(f"{len(frame):,} partite/record calendario disponibili nella sorgente importata.")
+        date_col = first_column(frame, ["game_date", "date"])
+        if date_col:
+            frame = frame.sort_values(date_col, ascending=False, na_position="last")
+        st.caption(f"{len(frame):,} record calendario presenti nella sorgente importata; non è una dichiarazione di copertura completa.")
+        st.dataframe(frame, hide_index=True, use_container_width=True, height=650)
+
+elif page == "Roster NCAA":
+    st.subheader("Roster NCAA · stagione 2026-27")
+    frame, err = load_dataset("team_rosters")
+    if show_load_error(err):
+        pass
+    elif frame.empty:
+        st.info("Nessun roster importato.")
+    else:
+        c1, c2 = st.columns(2)
+        team_col = first_column(frame, ["team", "team_name"])
+        name_col = first_column(frame, ["clean_name", "player", "name"])
+        if team_col:
+            teams = ["Tutte"] + sorted(frame[team_col].dropna().astype(str).unique().tolist())
+            team = c1.selectbox("Squadra", teams)
+            if team != "Tutte":
+                frame = frame[frame[team_col].astype(str) == team]
+        if name_col:
+            search = c2.text_input("Cerca giocatore")
+            if search:
+                frame = frame[frame[name_col].astype(str).str.contains(search, case=False, na=False)]
+        st.caption("Roster originali del provider. La presenza nel roster non dimostra la nazionalità italiana.")
         st.dataframe(frame, hide_index=True, use_container_width=True, height=650)
 
 elif page == "Giocatori italiani":
     st.subheader("Directory giocatori italiani")
-    st.info("La directory verrà mostrata quando saranno caricati i record di verifica della nazionalità. I nomi non vengono classificati come italiani in base al cognome o alla sola presenza in un roster.")
-    st.caption("Fonti ammesse: biografie ufficiali universitarie, federazioni e registri nazionali. Divisione e roster 2026-27 devono essere verificati separatamente.")
+    st.info("La directory ufficiale viene popolata solo dopo la verifica della nazionalità tramite biografie universitarie, federazioni o fonti primarie.")
+    st.write("Stato attuale: i dati roster NCAA sono consultabili nella sezione Roster NCAA, ma non vengono etichettati automaticamente come italiani.")
+    st.caption("Questa separazione evita falsi positivi basati su cognome, luogo di nascita o nome della squadra.")
+
+elif page == "Quintetti e tiri":
+    st.subheader("Quintetti, matchup e shot chart · NCAA 2026-27")
+    tab1, tab2, tab3 = st.tabs(["Quintetti", "Matchup", "Tiri"])
+    with tab1:
+        frame, err = load_dataset("lineups")
+        if show_load_error(err):
+            pass
+        elif frame.empty:
+            st.info("Nessun dato quintetti importato.")
+        else:
+            st.caption(f"{len(frame):,} stint di lineup caricati. I campi originali sono mantenuti.")
+            st.dataframe(frame, hide_index=True, use_container_width=True, height=550)
+    with tab2:
+        frame, err = load_dataset("matchup_stints")
+        if show_load_error(err):
+            pass
+        elif frame.empty:
+            st.info("Nessun matchup stint importato.")
+        else:
+            st.caption(f"{len(frame):,} matchup stint caricati.")
+            st.dataframe(frame, hide_index=True, use_container_width=True, height=550)
+    with tab3:
+        frame, err = load_dataset("shots")
+        if show_load_error(err):
+            pass
+        elif frame.empty:
+            st.info("Nessun tiro importato.")
+        else:
+            x_col = first_column(frame, ["shot_x", "x"])
+            y_col = first_column(frame, ["shot_y", "y"])
+            if x_col and y_col:
+                frame[x_col] = pd.to_numeric(frame[x_col], errors="coerce")
+                frame[y_col] = pd.to_numeric(frame[y_col], errors="coerce")
+                plot = frame.dropna(subset=[x_col, y_col])
+                st.caption(f"{len(plot):,} tiri con entrambe le coordinate disponibili su {len(frame):,} record.")
+                st.scatter_chart(plot, x=x_col, y=y_col)
+            else:
+                st.warning("Le coordinate non sono presenti nei campi riconosciuti: nessuno shot chart viene simulato.")
+            st.dataframe(frame.head(500), hide_index=True, use_container_width=True, height=450)
 
 elif page == "Draft NBA 2027":
     st.subheader("NBA Draft 2027 · Top 30 assoluta")
@@ -276,14 +346,14 @@ elif page == "Draft NBA 2027":
         if search:
             frame = frame[frame.astype(str).apply(lambda col: col.str.contains(search, case=False, na=False)).any(axis=1)]
         st.dataframe(frame, hide_index=True, use_container_width=True, height=650)
-        st.caption("Snapshot 13 novembre 2026 · consensus Ultimate Big Board")
+        st.caption("Snapshot 13 novembre 2026 · consensus Ultimate Big Board.")
         st.link_button("Apri fonte del ranking", "https://ultimatebigboard.com/nba/2027/")
 
 elif page == "Fonti e dati":
     st.subheader("Fonti, copertura e qualità")
     data, err = summary()
-    if err:
-        st.warning(err)
+    if show_load_error(err):
+        pass
     elif data:
         st.metric("Record grezzi stagione 2026-27", f"{data['rows_total']:,}")
         if data["datasets"]:
@@ -293,8 +363,8 @@ elif page == "Fonti e dati":
     st.markdown("#### Esplora i record originali")
     dataset = st.selectbox("Dataset", DATASETS)
     frame, load_error = load_dataset(dataset)
-    if load_error:
-        st.warning(load_error)
+    if show_load_error(load_error):
+        pass
     elif frame.empty:
         st.info("Nessun record disponibile per questo dataset.")
     else:
@@ -303,7 +373,7 @@ elif page == "Fonti e dati":
     st.markdown("#### Regole di qualità")
     st.write("• Solo stagione 2026-27 · • Nessuno storico · • Dato mancante distinto da zero")
     st.write("• Provenienza originale conservata · • Nazionalità italiana documentata")
-    st.write("• Metriche e percentili pubblicati solo quando campi e campione sono adeguati")
+    st.write("• Percentili su campione esplicito · • Metriche non disponibili non vengono inventate")
 
 st.divider()
 st.caption("NCAA Italian Players · stagione 2026-27 · dati reali da PostgreSQL · nessuna statistica simulata.")
