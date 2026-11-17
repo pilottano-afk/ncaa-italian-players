@@ -179,10 +179,22 @@ elif page == "Analisi giocatori":
             if search:
                 view = view[view["Giocatore"].str.contains(search, case=False, na=False)]
             view = view.sort_values(metric, ascending=False, na_position="last")
-            st.dataframe(view, hide_index=True, use_container_width=True, height=650)
+            display = view.copy()
+            percent_cols = [col for col in ["FG%", "eFG%", "3P%", "FT%", "TS%"] if col in display.columns]
+            for col in percent_cols:
+                display[col] = pd.to_numeric(display[col], errors="coerce") * 100
+            column_config = {
+                col: st.column_config.NumberColumn(col, format="%.1f%%")
+                for col in percent_cols
+            }
+            st.dataframe(display, column_config=column_config, hide_index=True,
+                         use_container_width=True, height=650)
             if metric in view and view[metric].notna().sum() >= 2:
                 st.markdown("#### Primi 20 · " + metric)
-                st.bar_chart(view.set_index("Giocatore")[[metric]].head(20))
+                chart = view[["Giocatore", metric]].head(20).copy()
+                if metric in percent_cols:
+                    chart[metric] = chart[metric] * 100
+                st.bar_chart(chart.set_index("Giocatore"))
             st.caption("TS% = PTS / [2 × (FGA + 0,44 × FTA)]. eFG% = (FGM + 0,5 × 3PM) / FGA. Le percentuali sono ricalcolate dai totali stagionali.")
 
 elif page == "Scheda giocatore":
@@ -246,7 +258,16 @@ elif page == "Analisi squadre":
             cols = [c for c in table.columns if c != "Squadra ID"]
             metric = st.selectbox("Ordina per indicatore", cols)
             table = table.sort_values(metric, ascending=False, na_position="last")
-            st.dataframe(table, hide_index=True, use_container_width=True, height=650)
+            display = table.copy()
+            percent_cols = [col for col in display.columns if col.endswith("%")]
+            for col in percent_cols:
+                display[col] = pd.to_numeric(display[col], errors="coerce") * 100
+            column_config = {
+                col: st.column_config.NumberColumn(col, format="%.1f%%")
+                for col in percent_cols
+            }
+            st.dataframe(display, column_config=column_config, hide_index=True,
+                         use_container_width=True, height=650)
 
 elif page == "Partite":
     st.subheader("Calendario e risultati · NCAA 2026-27")
