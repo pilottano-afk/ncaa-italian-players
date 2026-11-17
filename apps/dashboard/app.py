@@ -130,6 +130,16 @@ def italian_candidates():
     return frame
 
 
+def player_name_series(frame):
+    names = pd.Series(pd.NA, index=frame.index, dtype="string")
+    for field in ["clean_name", "player", "name", "athlete_display_name"]:
+        if field in frame.columns:
+            values = frame[field].astype("string").str.strip()
+            usable = values.notna() & values.ne("")
+            names = names.where(names.notna() & names.ne(""), values.where(usable))
+    return names.fillna("")
+
+
 def show_load_error(err):
     if err:
         st.warning(err)
@@ -253,7 +263,7 @@ elif page == "Scheda giocatore":
                     cols[i % len(cols)].metric(item, value)
                 name_col = first_column(box, ["clean_name", "player", "name", "athlete_display_name"])
                 if name_col:
-                    game_log = box[box[name_col].map(normalized_name) == candidate["_match_name"]].copy()
+                    game_log = box[player_name_series(box).map(normalized_name) == candidate["_match_name"]].copy()
                     st.markdown("#### Box score partita per partita")
                     st.dataframe(game_log, hide_index=True, use_container_width=True, height=500)
 
@@ -339,7 +349,7 @@ elif page == "Giocatori italiani":
             box = pd.DataFrame()
         stats = pd.DataFrame()
         if not box.empty:
-            stats, _ = player_season_stats(box, min_games=1)
+            stats, _ = player_season_stats(box, min_games=5)
         if not stats.empty:
             stats["_match_name"] = stats["Giocatore"].map(normalized_name)
             counts = stats.groupby("_match_name")["ID NCAA"].nunique(dropna=True)
@@ -347,14 +357,16 @@ elif page == "Giocatori italiani":
             stats = stats[stats["_match_name"].isin(unique_names)].drop_duplicates("_match_name")
             wanted = ["Partite", "Minuti per partita", "Punti per partita", "Assist per partita",
                       "Rimbalzi offensivi per partita", "Rimbalzi difensivi per partita",
-                      "FG%", "3P%", "FT%", "TS%"]
+                      "FG%", "3P%", "FT%", "TS%", "Percentile Punti per partita",
+                      "Percentile TS%"]
             keep = ["_match_name"] + [col for col in wanted if col in stats.columns]
             view = candidates.merge(stats[keep], on="_match_name", how="left")
         else:
             view = candidates.copy()
             for metric in ["Partite", "Minuti per partita", "Punti per partita", "Assist per partita",
                            "Rimbalzi offensivi per partita", "Rimbalzi difensivi per partita",
-                           "FG%", "3P%", "FT%", "TS%"]:
+                           "FG%", "3P%", "FT%", "TS%", "Percentile Punti per partita",
+                           "Percentile TS%"]:
                 view[metric] = pd.NA
         orb = pd.to_numeric(view.get("Rimbalzi offensivi per partita", pd.Series(index=view.index, dtype=float)), errors="coerce").fillna(0)
         drb = pd.to_numeric(view.get("Rimbalzi difensivi per partita", pd.Series(index=view.index, dtype=float)), errors="coerce").fillna(0)
@@ -371,6 +383,7 @@ elif page == "Giocatori italiani":
                  ("Minuti per partita", "Minuti"), ("Punti per partita", "Punti"),
                  ("Assist per partita", "Assist"), ("Rimbalzi per partita", "Rimbalzi"),
                  ("FG%", "FG%"), ("3P%", "3P%"), ("FT%", "FT%"), ("TS%", "TS%"),
+                 ("Percentile Punti per partita", "Pct punti"), ("Percentile TS%", "Pct TS%"),
                  ("Stato statistiche", "Stato")]
         available_pairs = [(col, label) for col, label in pairs if col in view.columns]
         display = view[[col for col, _ in available_pairs]].copy()
