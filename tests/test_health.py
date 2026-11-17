@@ -12,15 +12,19 @@ def test_health_is_scoped_to_2026_27() -> None:
     assert response.json()["season_label"] == "2026-27"
 
 
-def test_coverage_lists_sources_without_claiming_live_data() -> None:
+def test_coverage_lists_sources_without_claiming_live_data(monkeypatch) -> None:
+    # The test suite may provide a disposable PostgreSQL DATABASE_URL.
+    # Remove it here so this test checks the unconfigured-source state deterministically.
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("NCAA_DATABASE_URL", raising=False)
     response = client.get("/api/v1/coverage")
     assert response.status_code == 200
     payload = response.json()
     assert payload["historical_data_enabled"] is False
-    assert payload["status"] == "not_connected"
+    assert payload["status"] == "not_configured"
     assert {source["id"] for source in payload["sources"]} == {
         "sportsdataverse",
         "collegebasketballdata",
     }
     assert payload["source_health"][0]["state"] == "not_checked"
-    assert payload["source_health"][1]["state"] in {"not_configured", "configured"}
+    assert payload["source_health"][1]["state"] == "not_configured"
