@@ -64,6 +64,22 @@ def test_missing_values_are_not_converted_to_zero():
     assert row["Punti gare con dato"] == 1
 
 
+
+def test_player_name_falls_back_when_clean_name_is_null():
+    source = pd.DataFrame([
+        {"season": 2027, "contest_id": "g1", "player_id": 77,
+         "clean_name": None, "player": "DAME.SARR", "minutes": 22, "pts": 9},
+        {"season": 2027, "contest_id": "g2", "player_id": 77,
+         "clean_name": None, "player": "DAME.SARR", "minutes": 28, "pts": 13},
+    ])
+    result, meta = player_season_stats(source, min_games=1)
+    assert len(result) == 1
+    assert result.iloc[0]["Giocatore"] == "DAME.SARR"
+    assert result.iloc[0]["Partite"] == 2
+    assert result.iloc[0]["Punti totali"] == 22
+    assert meta["identity_unresolved"] == 0
+
+
 def test_team_stats_average_only_present_metrics():
     source = pd.DataFrame([
         {"season": 2027, "contest_id": "g1", "team_ncaa_team_id": 5,
