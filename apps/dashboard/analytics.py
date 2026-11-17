@@ -58,14 +58,24 @@ def player_season_stats(
         seasons = set(pd.to_numeric(source[season_col], errors="coerce").dropna().astype(int))
         if seasons - {SEASON}:
             raise ValueError("Sono presenti record fuori dalla stagione 2026-27.")
-    name_col = _column(source, NAME_FIELDS)
-    if not name_col:
+    if not any(name in source.columns for name in NAME_FIELDS):
         return pd.DataFrame(), {"status": "missing_player_name", "season": SEASON}
     id_col = _column(source, ID_FIELDS)
     team_col = _column(source, TEAM_FIELDS)
     game_col = _column(source, GAME_FIELDS)
     work = source.copy()
-    work["_name"] = work[name_col].map(_safe_name)
+
+    def best_available_name(row: pd.Series) -> str:
+        for field in NAME_FIELDS:
+            if field in row.index and not pd.isna(row[field]):
+                value = _safe_name(row[field])
+                if value != "Giocatore non identificato":
+                    return value
+        return "Giocatore non identificato"
+
+    # Some provider rows contain a null clean_name but a usable player/name field.
+    # Resolve per row instead of selecting the first existing column for the whole dataset.
+    work["_name"] = work.apply(best_available_name, axis=1)
     work["_team"] = work[team_col].astype("string").fillna("team-unknown") if team_col else "team-unknown"
     if id_col:
         ids = work[id_col].astype("string")
