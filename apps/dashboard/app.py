@@ -352,6 +352,10 @@ elif page == "Giocatori italiani":
             view = candidates.merge(stats[keep], on="_match_name", how="left")
         else:
             view = candidates.copy()
+            for metric in ["Partite", "Minuti per partita", "Punti per partita", "Assist per partita",
+                           "Rimbalzi offensivi per partita", "Rimbalzi difensivi per partita",
+                           "FG%", "3P%", "FT%", "TS%"]:
+                view[metric] = pd.NA
         orb = pd.to_numeric(view.get("Rimbalzi offensivi per partita", pd.Series(index=view.index, dtype=float)), errors="coerce").fillna(0)
         drb = pd.to_numeric(view.get("Rimbalzi difensivi per partita", pd.Series(index=view.index, dtype=float)), errors="coerce").fillna(0)
         view["Rimbalzi per partita"] = orb + drb
