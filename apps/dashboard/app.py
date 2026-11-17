@@ -15,6 +15,7 @@ st.set_page_config(page_title="NCAA Italian Players", page_icon="🏀", layout="
 ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(ROOT / ".env.local", override=False)
 DRAFT_FILE = ROOT / "docs" / "nba-draft-2027-top-30.md"
+ITALIAN_CANDIDATES_FILE = ROOT / "docs" / "italian-player-candidates-2026-27.csv"
 SEASON = 2027
 DATASETS = ["schedule", "team_rosters", "rosters", "pbp", "player_box", "team_box",
             "lineups", "matchup_stints", "possessions", "shots", "team_ids"]
@@ -311,10 +312,28 @@ elif page == "Roster NCAA":
         st.dataframe(frame, hide_index=True, use_container_width=True, height=650)
 
 elif page == "Giocatori italiani":
-    st.subheader("Directory giocatori italiani")
-    st.info("La directory ufficiale viene popolata solo dopo la verifica della nazionalità tramite biografie universitarie, federazioni o fonti primarie.")
-    st.write("Stato attuale: i dati roster NCAA sono consultabili nella sezione Roster NCAA, ma non vengono etichettati automaticamente come italiani.")
-    st.caption("Questa separazione evita falsi positivi basati su cognome, luogo di nascita o nome della squadra.")
+    st.subheader("Giocatori italiani · NCAA 2026-27")
+    st.info("Questa è una lista di candidati da verificare, non un elenco definitivo di nazionalità certificate. La nazionalità non viene dedotta dal cognome o dal luogo di nascita.")
+    if ITALIAN_CANDIDATES_FILE.exists():
+        candidates = pd.read_csv(ITALIAN_CANDIDATES_FILE)
+        st.metric("Candidati segnalati da una fonte secondaria", len(candidates))
+        st.caption("Elenco D-I pubblicato da Bamboden e acquisito il 17 novembre 2026. Tutti i record restano in stato 'da verificare' finché non viene associata una prova primaria.")
+        search = st.text_input("Cerca giocatore o università")
+        if search:
+            mask = candidates.astype(str).apply(
+                lambda col: col.str.contains(search, case=False, na=False)
+            ).any(axis=1)
+            candidates = candidates[mask]
+        st.dataframe(candidates[["source_name", "team", "source_hometown", "division", "review_status"]],
+                     hide_index=True, use_container_width=True, height=600)
+        st.markdown("**Fonti di confronto**")
+        st.link_button("Lista Bamboden · 38 giocatori D-I", "https://college.bamboden.com/en/italiani")
+        st.link_button("Guida BasketballNCAA · settembre 2026", "https://www.basketballncaa.com/guida-preview-italiani-ncaa-26-27/")
+        st.link_button("RealGM · giocatori italiani NCAA", "https://basketball.realgm.com/national/countries/6/Italy/ncaa-players")
+        st.caption("Le fonti non concordano perfettamente sul perimetro e sul numero di giocatori. Il prossimo passaggio è verificare individualmente roster universitario, Division I e prova di nazionalità; non vengono importate qui statistiche provenienti da queste pagine.")
+    else:
+        st.warning("Lista candidati non trovata. Consultare la repository per il file sorgente.")
+    st.caption("Solo i giocatori con evidenza primaria documentata passeranno allo stato 'verificato'.")
 
 elif page == "Quintetti e tiri":
     st.subheader("Quintetti, matchup e shot chart · NCAA 2026-27")
