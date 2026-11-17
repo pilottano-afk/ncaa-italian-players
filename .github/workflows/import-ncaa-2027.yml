@@ -49,8 +49,8 @@ jobs:
       - name: Download and validate current-season datasets
         if: steps.dbsecret.outputs.skip != 'true'
         run: >-
-          ncaa-stage --datasets schedule team_rosters rosters pbp player_box team_box
-          lineups matchup_stints possessions shots team_ids
+          ncaa-stage --datasets schedule team_rosters rosters player_box team_box
+          shots team_ids
           --output data/staging/2027
 
       - name: Audit source rows before database writes
@@ -74,4 +74,6 @@ jobs:
           elif [ -f data/staging/2027/manifest.json ]; then
             echo "### NCAA 2026-27 import" >> "$GITHUB_STEP_SUMMARY"
             echo "Season: 2026-27 (season key 2027). Historical seasons are disabled." >> "$GITHUB_STEP_SUMMARY"
+            echo "Imported datasets: schedule, team_rosters, rosters, player_box, team_box, shots, team_ids." >> "$GITHUB_STEP_SUMMARY"
+            echo "Large raw datasets (pbp, possessions, lineups, matchup_stints) are intentionally excluded to stay within database storage limits." >> "$GITHUB_STEP_SUMMARY"
           fi
