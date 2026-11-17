@@ -1,6 +1,10 @@
 name: Import NCAA 2026-27 data into PostgreSQL
 
 on:
+  # GitHub cron is UTC: 07:00 UTC is 08:00 in Italy during CET.
+  # During CEST it runs at 09:00 local time; GitHub cron does not follow DST.
+  schedule:
+    - cron: "0 7 * * *"
   workflow_dispatch:
 
 permissions:
