@@ -49,6 +49,21 @@ def test_player_stats_reject_historical_season_rows():
         player_season_stats(source)
 
 
+def test_missing_values_are_not_converted_to_zero():
+    source = pd.DataFrame([
+        {"season": 2027, "contest_id": "g1", "player_id": 10, "clean_name": "A Player",
+         "team_ncaa_team_id": 1, "minutes": 20, "pts": 10},
+        {"season": 2027, "contest_id": "g2", "player_id": 10, "clean_name": "A Player",
+         "team_ncaa_team_id": 1, "minutes": 20, "pts": None},
+    ])
+    result, _ = player_season_stats(source, min_games=1)
+    row = result.iloc[0]
+    assert row["Partite"] == 2
+    assert row["Punti totali"] == 10
+    assert row["Punti per partita"] == 10
+    assert row["Punti gare con dato"] == 1
+
+
 def test_team_stats_average_only_present_metrics():
     source = pd.DataFrame([
         {"season": 2027, "contest_id": "g1", "team_ncaa_team_id": 5,
