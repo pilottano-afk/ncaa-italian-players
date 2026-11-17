@@ -16,6 +16,7 @@ dependencies = [
   "psycopg[binary]>=3.2,<4.0",
   "httpx>=0.27,<1.0",
   "pyarrow>=18.0,<22.0",
+  "pandas>=2.2,<3.0",
 ]
 
 [project.scripts]
@@ -30,7 +31,7 @@ dev = ["pytest>=8.3,<9.0", "ruff>=0.6,<1.0"]
 where = ["apps/api"]
 
 [tool.pytest.ini_options]
-pythonpath = ["apps/api"]
+pythonpath = ["apps/api", "apps/dashboard"]
 testpaths = ["tests"]
 
 [tool.ruff]

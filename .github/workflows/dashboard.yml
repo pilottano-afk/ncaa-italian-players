@@ -5,10 +5,12 @@ on:
     branches: [main]
     paths:
       - "apps/dashboard/**"
+      - "tests/test_dashboard_analytics.py"
       - ".github/workflows/dashboard.yml"
   pull_request:
     paths:
       - "apps/dashboard/**"
+      - "tests/test_dashboard_analytics.py"
       - ".github/workflows/dashboard.yml"
   workflow_dispatch:
 
@@ -20,10 +22,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install dashboard dependencies
-        run: python -m pip install -r apps/dashboard/requirements.txt
-      - name: Compile dashboard
-        run: python -m py_compile apps/dashboard/app.py
+      - name: Install dashboard dependencies and test runner
+        run: |
+          python -m pip install -r apps/dashboard/requirements.txt
+          python -m pip install pytest
+      - name: Compile dashboard modules
+        run: |
+          python -m py_compile apps/dashboard/app.py apps/dashboard/analytics.py
+      - name: Test analytics calculations
+        working-directory: apps/dashboard
+        run: PYTHONPATH=. pytest -q ../../tests/test_dashboard_analytics.py
       - name: Smoke test Streamlit app
         env:
           NCAA_API_URL: http://127.0.0.1:9
