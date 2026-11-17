@@ -50,7 +50,7 @@ def _safe_name(value: object) -> str:
 def player_season_stats(
     source: pd.DataFrame, *, min_games: int = 5
 ) -> tuple[pd.DataFrame, dict[str, object]]:
-    """Aggregate player-game rows to season totals, per-game rates and valid percentiles."""
+    """Aggregate player-game rows to season totals, observed per-game means and percentiles."""
     if source.empty:
         return pd.DataFrame(), {"status": "empty", "season": SEASON}
     season_col = _column(source, ("season",))
@@ -81,9 +81,8 @@ def player_season_stats(
             available[label] = "_m_" + label
     if not available:
         return pd.DataFrame(), {"status": "no_recognized_box_score_metrics", "season": SEASON}
-    grouped = work.groupby("_identity", dropna=False, sort=False)
     rows = []
-    for identity, group in grouped:
+    for identity, group in work.groupby("_identity", dropna=False, sort=False):
         row: dict[str, object] = {
             "ID NCAA": identity if not str(identity).startswith("unresolved:") else None,
             "Giocatore": group["_name"].iloc[0],
@@ -92,13 +91,12 @@ def player_season_stats(
             "Identità verificata": not str(identity).startswith("unresolved:"),
         }
         for label, col in available.items():
-            row[label + " totali"] = group[col].sum(min_count=1)
-            row[label] = group[col].mean()
+            values = group[col]
+            row[label + " totali"] = values.sum(min_count=1)
+            row[label + " per partita"] = values.mean()
+            row[label + " gare con dato"] = int(values.notna().sum())
         rows.append(row)
     result = pd.DataFrame(rows)
-    games = result["Partite"].clip(lower=1)
-    for label in available:
-        result[label + " per partita"] = result[label + " totali"] / games
     # Recalculate shooting percentages from season totals; never average game percentages.
     def total(label: str) -> pd.Series | None:
         key = label + " totali"
@@ -132,7 +130,9 @@ def player_season_stats(
             pct = values[valid].rank(method="average", pct=True) * 100
             result["Percentile " + metric] = pd.NA
             result.loc[pct.index, "Percentile " + metric] = pct.round(1)
-    return result.sort_values("Punti per partita", ascending=False, na_position="last") if "Punti per partita" in result else result, {
+    if "Punti per partita" in result:
+        result = result.sort_values("Punti per partita", ascending=False, na_position="last")
+    return result, {
         "status": "ok",
         "season": SEASON,
         "source_rows": len(source),
@@ -142,6 +142,7 @@ def player_season_stats(
         "identity_unresolved": int((~result["Identità verificata"]).sum()),
         "percentile_population": "Giocatori con almeno min_games partite e minuti totali positivi; solo stagione 2026-27.",
         "shooting_formula": "TS%=PTS/[2*(FGA+0.44*FTA)]; eFG%=(FGM+0.5*3PM)/FGA.",
+        "missing_value_policy": "Per partita usa la media dei valori osservati; i null non sono convertiti in zero.",
     }
 
 
@@ -167,8 +168,8 @@ def team_season_stats(source: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, obj
     work["_team"] = work[team_col].astype("string").fillna("Squadra non identificata")
     rows = []
     for team, group in work.groupby("_team", dropna=False):
-        row = {"Squadra ID": str(team), "Partite": group[_column(group, GAME_FIELDS)].nunique()
-               if _column(group, GAME_FIELDS) else len(group)}
+        game_col = _column(group, GAME_FIELDS)
+        row = {"Squadra ID": str(team), "Partite": group[game_col].nunique() if game_col else len(group)}
         for label, aliases in metrics.items():
             values = _numbers(group, aliases)
             if values is not None:
