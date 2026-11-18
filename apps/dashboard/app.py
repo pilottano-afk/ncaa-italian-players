@@ -375,24 +375,64 @@ elif page == "Giocatori italiani":
         a, b = st.columns(2)
         a.metric("Giocatori nell'elenco Bamboden", len(candidates))
         b.metric("Con statistiche collegate", int(view["Punti per partita"].notna().sum()))
-        search = st.text_input("Cerca giocatore o università")
-        if search:
-            mask = view.astype(str).apply(lambda col: col.str.contains(search, case=False, na=False)).any(axis=1)
-            view = view[mask]
-        pairs = [("source_name", "Giocatore"), ("team", "Università"), ("Partite", "Partite"),
-                 ("Minuti per partita", "Minuti"), ("Punti per partita", "Punti"),
-                 ("Assist per partita", "Assist"), ("Rimbalzi per partita", "Rimbalzi"),
-                 ("FG%", "FG%"), ("3P%", "3P%"), ("FT%", "FT%"), ("TS%", "TS%"),
-                 ("Percentile Punti per partita", "Pct punti"), ("Percentile TS%", "Pct TS%"),
-                 ("Stato statistiche", "Stato")]
-        available_pairs = [(col, label) for col, label in pairs if col in view.columns]
-        display = view[[col for col, _ in available_pairs]].copy()
-        display.columns = [label for _, label in available_pairs]
-        percent_cols = [col for col in ["FG%", "3P%", "FT%", "TS%"] if col in display]
-        for col in percent_cols:
-            display[col] = pd.to_numeric(display[col], errors="coerce") * 100
-        config = {col: st.column_config.NumberColumn(col, format="%.1f%%") for col in percent_cols}
-        st.dataframe(display, column_config=config, hide_index=True, use_container_width=True, height=620)
+
+        st.markdown("### Statistiche e classifiche")
+        tab_stats, tab_rank = st.tabs(["Tutti i giocatori", "Classifiche"])
+        with tab_stats:
+            search = st.text_input("Cerca giocatore o università")
+            filtered = view.copy()
+            if search:
+                mask = filtered.astype(str).apply(lambda col: col.str.contains(search, case=False, na=False)).any(axis=1)
+                filtered = filtered[mask]
+            pairs = [("source_name", "Giocatore"), ("team", "Università"), ("Partite", "Partite"),
+                     ("Minuti per partita", "Minuti"), ("Punti per partita", "Punti"),
+                     ("Assist per partita", "Assist"), ("Rimbalzi per partita", "Rimbalzi"),
+                     ("FG%", "FG%"), ("3P%", "3P%"), ("FT%", "FT%"), ("TS%", "TS%"),
+                     ("Percentile Punti per partita", "Pct punti"), ("Percentile TS%", "Pct TS%"),
+                     ("Stato statistiche", "Stato")]
+            available_pairs = [(col, label) for col, label in pairs if col in filtered.columns]
+            display = filtered[[col for col, _ in available_pairs]].copy()
+            display.columns = [label for _, label in available_pairs]
+            percent_cols = [col for col in ["FG%", "3P%", "FT%", "TS%"] if col in display]
+            for col in percent_cols:
+                display[col] = pd.to_numeric(display[col], errors="coerce") * 100
+            for col in ["Pct punti", "Pct TS%"]:
+                if col in display:
+                    display[col] = pd.to_numeric(display[col], errors="coerce").map(
+                        lambda value: f"{value:.1f}" if pd.notna(value) else "n.d."
+                    )
+            config = {col: st.column_config.NumberColumn(col, format="%.1f%%") for col in percent_cols}
+            st.dataframe(display, column_config=config, hide_index=True, use_container_width=True, height=620)
+            st.caption("n.d. = percentile non calcolabile con il campione attuale (almeno 5 partite richieste). Non equivale a zero.")
+        with tab_rank:
+            rank_options = {
+                "Punti per partita": "Punti per partita",
+                "Rimbalzi per partita": "Rimbalzi per partita",
+                "Assist per partita": "Assist per partita",
+                "Minuti per partita": "Minuti per partita",
+                "TS%": "TS%",
+                "FG%": "FG%",
+                "3P%": "3P%",
+                "FT%": "FT%",
+            }
+            available_rank = [label for label in rank_options if rank_options[label] in view.columns]
+            metric_label = st.selectbox("Classifica per", available_rank)
+            metric = rank_options[metric_label]
+            ranking = view[["source_name", "team", "Partite", metric]].copy()
+            ranking[metric] = pd.to_numeric(ranking[metric], errors="coerce")
+            ranking = ranking.dropna(subset=[metric]).sort_values(metric, ascending=False).head(20)
+            if metric.endswith("%"):
+                ranking[metric] = ranking[metric] * 100
+                st.dataframe(ranking, hide_index=True, use_container_width=True,
+                             column_config={metric: st.column_config.NumberColumn(metric, format="%.1f%%")})
+            else:
+                st.dataframe(ranking, hide_index=True, use_container_width=True)
+            if not ranking.empty:
+                chart = ranking.rename(columns={"source_name": "Giocatore"}).set_index("Giocatore")[[metric]]
+                st.bar_chart(chart)
+            else:
+                st.info("Nessun valore disponibile per questa classifica.")
+            st.caption("Le classifiche usano solo i dati NCAA 2026-27 collegati in modo univoco. Le percentuali sono calcolate dai totali stagionali.")
         st.caption("Statistiche collegate solo quando il nome coincide in modo univoco. Nessuna associazione incerta viene inventata.")
         st.link_button("Apri elenco Bamboden", "https://college.bamboden.com/en/italiani")
         st.caption("Fonte elenco: Bamboden. Statistiche: dataset NCAA importati in Neon. Solo stagione corrente.")
