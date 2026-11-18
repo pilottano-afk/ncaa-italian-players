@@ -31,7 +31,7 @@ div[data-testid="stMetric"]{background:rgba(120,140,170,.09);padding:12px;border
 st.sidebar.title("🏀 NCAA Italian Players")
 page = st.sidebar.radio("Navigazione", [
     "Giocatori italiani", "Scheda giocatore", "Draft NBA 2027",
-    "Analisi squadre", "Partite", "Dashboard", "Fonti e dati"
+    "Analisi squadre", "Partite", "Quintetti e tiri", "Dashboard", "Fonti e dati"
 ])
 st.sidebar.caption("Stagione attiva: 2026-27 · season=2027")
 st.sidebar.caption("Dati storici esclusi")
