@@ -247,26 +247,76 @@ elif page == "Scheda giocatore":
                 row = matches.iloc[0]
                 st.markdown(f"### {selected}")
                 st.caption(f"{candidate['team']} · stagione 2026-27")
-                metrics = ["Partite", "Minuti per partita", "Punti per partita", "Assist per partita",
-                           "Rimbalzi offensivi per partita", "Rimbalzi difensivi per partita",
-                           "TS%", "eFG%", "3P%", "FT%"]
-                available = [item for item in metrics if item in result.columns]
-                cols = st.columns(min(5, len(available)))
-                for i, item in enumerate(available):
-                    value = row[item]
-                    if item.endswith("%") and pd.notna(value):
-                        value = f"{float(value) * 100:.1f}%"
-                    elif pd.notna(value):
-                        value = f"{float(value):.1f}" if item != "Partite" else str(int(value))
+                total_rebounds = None
+                if pd.notna(row.get("Rimbalzi offensivi per partita")) and pd.notna(row.get("Rimbalzi difensivi per partita")):
+                    total_rebounds = float(row["Rimbalzi offensivi per partita"]) + float(row["Rimbalzi difensivi per partita"])
+                metrics = [
+                    ("Partite", "Partite", False),
+                    ("Minuti", "Minuti per partita", False),
+                    ("Punti", "Punti per partita", False),
+                    ("Rimbalzi", None, False),
+                    ("Assist", "Assist per partita", False),
+                    ("FG%", "FG%", True),
+                    ("3P%", "3P%", True),
+                    ("FT%", "FT%", True),
+                    ("TS%", "TS%", True),
+                    ("eFG%", "eFG%", True),
+                ]
+                st.markdown("#### Medie stagionali")
+                cols = st.columns(5)
+                for i, (label, field, is_pct) in enumerate(metrics):
+                    value = total_rebounds if label == "Rimbalzi" else (row.get(field) if field else None)
+                    if value is None or pd.isna(value):
+                        shown = "n/d"
+                    elif is_pct:
+                        shown = f"{float(value) * 100:.1f}%"
+                    elif label == "Partite":
+                        shown = str(int(value))
                     else:
-                        value = "n/d"
-                    cols[i % len(cols)].metric(item, value)
+                        shown = f"{float(value):.1f}"
+                    cols[i % 5].metric(label, shown)
+                st.markdown("#### Totali stagionali")
+                total_fields = [
+                    ("Punti", "Punti totali"), ("Rimbalzi offensivi", "Rimbalzi offensivi totali"),
+                    ("Rimbalzi difensivi", "Rimbalzi difensivi totali"), ("Assist", "Assist totali"),
+                    ("Palle rubate", "Palle rubate totali"), ("Stoppate", "Stoppate totali"),
+                    ("Palle perse", "Palle perse totali"), ("Minuti", "Minuti totali"),
+                ]
+                totals = [(label, row.get(field)) for label, field in total_fields if field in result.columns]
+                if totals:
+                    total_cols = st.columns(4)
+                    for i, (label, value) in enumerate(totals):
+                        shown = "n/d" if pd.isna(value) else f"{float(value):,.0f}"
+                        total_cols[i % 4].metric(label, shown)
                 name_col = first_column(box, ["clean_name", "player", "name", "athlete_display_name"])
                 if name_col:
                     game_log = box[player_name_series(box).map(normalized_name) == candidate["_match_name"]].copy()
-                    st.markdown("#### Box score partita per partita")
-                    st.dataframe(game_log, hide_index=True, use_container_width=True, height=500)
-
+                    st.markdown("#### Andamento partita per partita")
+                    trend_fields = [
+                        ("pts", "Punti"), ("points", "Punti"), ("ast", "Assist"),
+                        ("assists", "Assist"), ("orb", "Rimbalzi offensivi"),
+                        ("drb", "Rimbalzi difensivi"), ("mins", "Minuti"), ("minutes", "Minuti")
+                    ]
+                    chart_data = pd.DataFrame(index=range(len(game_log)))
+                    for source_col, label in trend_fields:
+                        if source_col in game_log.columns and label not in chart_data.columns:
+                            chart_data[label] = pd.to_numeric(game_log[source_col], errors="coerce").reset_index(drop=True)
+                    if not chart_data.empty and chart_data.notna().any().any():
+                        chart_data.index = [f"Gara {i+1}" for i in range(len(chart_data))]
+                        selected_trend = st.selectbox("Indicatore da visualizzare", chart_data.columns.tolist())
+                        st.line_chart(chart_data[[selected_trend]])
+                    else:
+                        st.info("I valori partita per partita non sono sufficienti per il grafico.")
+                    id_col = first_column(game_log, ["contest_id", "game_id"])
+                    stat_cols = [c for c in ["date", "game_date", "opponent", "team", "mins", "minutes",
+                                             "pts", "points", "orb", "drb", "ast", "stl", "blk", "tov",
+                                             "fgm", "fga", "tpm", "tpa", "ftm", "fta"] if c in game_log.columns]
+                    if id_col and id_col not in stat_cols:
+                        stat_cols.insert(0, id_col)
+                    if stat_cols:
+                        st.dataframe(game_log[stat_cols], hide_index=True, use_container_width=True, height=450)
+                    else:
+                        st.dataframe(game_log, hide_index=True, use_container_width=True, height=450)
 
 elif page == "Analisi squadre":
     st.subheader("Analisi squadre · NCAA 2026-27")
