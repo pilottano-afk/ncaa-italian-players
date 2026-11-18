@@ -349,7 +349,9 @@ elif page == "Giocatori italiani":
             box = pd.DataFrame()
         stats = pd.DataFrame()
         if not box.empty:
-            stats, _ = player_season_stats(box, min_games=5)
+            min_games = st.slider("Partite minime per i percentili", 1, 10, 3,
+                                  help="Le medie stagionali sono mostrate anche con meno partite; la soglia riguarda solo i percentili.")
+            stats, _ = player_season_stats(box, min_games=min_games)
         if not stats.empty:
             stats["_match_name"] = stats["Giocatore"].map(normalized_name)
             counts = stats.groupby("_match_name")["ID NCAA"].nunique(dropna=True)
@@ -358,7 +360,8 @@ elif page == "Giocatori italiani":
             wanted = ["Partite", "Minuti per partita", "Punti per partita", "Assist per partita",
                       "Rimbalzi offensivi per partita", "Rimbalzi difensivi per partita",
                       "FG%", "3P%", "FT%", "TS%", "Percentile Punti per partita",
-                      "Percentile TS%"]
+                      "Percentile Assist per partita", "Percentile Rimbalzi per partita",
+                      "Percentile FG%", "Percentile 3P%", "Percentile FT%", "Percentile TS%"]
             keep = ["_match_name"] + [col for col in wanted if col in stats.columns]
             view = candidates.merge(stats[keep], on="_match_name", how="left")
         else:
@@ -366,7 +369,8 @@ elif page == "Giocatori italiani":
             for metric in ["Partite", "Minuti per partita", "Punti per partita", "Assist per partita",
                            "Rimbalzi offensivi per partita", "Rimbalzi difensivi per partita",
                            "FG%", "3P%", "FT%", "TS%", "Percentile Punti per partita",
-                           "Percentile TS%"]:
+                           "Percentile Assist per partita", "Percentile Rimbalzi per partita",
+                           "Percentile FG%", "Percentile 3P%", "Percentile FT%", "Percentile TS%"]:
                 view[metric] = pd.NA
         orb = pd.to_numeric(view.get("Rimbalzi offensivi per partita", pd.Series(index=view.index, dtype=float)), errors="coerce").fillna(0)
         drb = pd.to_numeric(view.get("Rimbalzi difensivi per partita", pd.Series(index=view.index, dtype=float)), errors="coerce").fillna(0)
@@ -388,7 +392,11 @@ elif page == "Giocatori italiani":
                      ("Minuti per partita", "Minuti"), ("Punti per partita", "Punti"),
                      ("Assist per partita", "Assist"), ("Rimbalzi per partita", "Rimbalzi"),
                      ("FG%", "FG%"), ("3P%", "3P%"), ("FT%", "FT%"), ("TS%", "TS%"),
-                     ("Percentile Punti per partita", "Pct punti"), ("Percentile TS%", "Pct TS%"),
+                     ("Percentile Punti per partita", "Pct punti"),
+                     ("Percentile Assist per partita", "Pct assist"),
+                     ("Percentile Rimbalzi per partita", "Pct rimbalzi"),
+                     ("Percentile FG%", "Pct FG%"), ("Percentile 3P%", "Pct 3P%"),
+                     ("Percentile FT%", "Pct FT%"), ("Percentile TS%", "Pct TS%"),
                      ("Stato statistiche", "Stato")]
             available_pairs = [(col, label) for col, label in pairs if col in filtered.columns]
             display = filtered[[col for col, _ in available_pairs]].copy()
@@ -396,7 +404,7 @@ elif page == "Giocatori italiani":
             percent_cols = [col for col in ["FG%", "3P%", "FT%", "TS%"] if col in display]
             for col in percent_cols:
                 display[col] = pd.to_numeric(display[col], errors="coerce") * 100
-            for col in ["Pct punti", "Pct TS%"]:
+            for col in ["Pct punti", "Pct assist", "Pct rimbalzi", "Pct FG%", "Pct 3P%", "Pct FT%", "Pct TS%"]:
                 if col in display:
                     display[col] = pd.to_numeric(display[col], errors="coerce").map(
                         lambda value: f"{value:.1f}" if pd.notna(value) else "n.d."
