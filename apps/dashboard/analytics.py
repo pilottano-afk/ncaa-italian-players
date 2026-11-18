@@ -126,12 +126,18 @@ def player_season_stats(
     if pts is not None and fga is not None and fta is not None:
         denominator = 2 * (fga + 0.44 * fta)
         result["TS%"] = (pts / denominator.where(denominator > 0)).where(denominator > 0)
+    if "Rimbalzi offensivi per partita" in result and "Rimbalzi difensivi per partita" in result:
+        result["Rimbalzi per partita"] = (
+            pd.to_numeric(result["Rimbalzi offensivi per partita"], errors="coerce")
+            + pd.to_numeric(result["Rimbalzi difensivi per partita"], errors="coerce")
+        )
     qualified = result["Partite"] >= min_games
     if "Minuti totali" in result:
         qualified &= result["Minuti totali"].fillna(0) > 0
     result["Campione percentile valido"] = qualified
-    percentile_metrics = ["Punti per partita", "Assist per partita", "Rimbalzi offensivi per partita",
-                          "Rimbalzi difensivi per partita", "TS%", "eFG%", "3P%", "FT%"]
+    percentile_metrics = ["Punti per partita", "Assist per partita", "Rimbalzi per partita",
+                          "Rimbalzi offensivi per partita", "Rimbalzi difensivi per partita",
+                          "FG%", "TS%", "eFG%", "3P%", "FT%"]
     percentile_count = int(qualified.sum())
     for metric in percentile_metrics:
         if metric in result and percentile_count >= 2:
