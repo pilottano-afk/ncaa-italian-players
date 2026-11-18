@@ -175,10 +175,20 @@ def team_season_stats(source: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, obj
     if not team_col:
         return pd.DataFrame(), {"status": "missing_team_id", "season": SEASON}
     metrics = {
-        "Possessi": ("possessions",), "ORtg": ("offensive_rating", "ORtg", "ortg"),
-        "DRtg": ("defensive_rating", "DRtg", "drtg"), "NetRtg": ("net_rating", "NetRtg", "netrtg"),
-        "Punti": ("pts", "points"), "TS%": ("ts_pct",), "eFG%": ("efg_pct",),
-        "TOV%": ("tov_pct",), "ORB%": ("orb_pct",), "DRB%": ("drb_pct",),
+        "Possessi": ("o_poss", "possessions"),
+        "ORtg": ("ortg", "offensive_rating", "ORtg"),
+        "DRtg": ("drtg", "defensive_rating", "DRtg"),
+        "NetRtg": ("netrtg", "net_rating", "NetRtg"),
+        "Punti segnati": ("pts", "points"),
+        "Punti concessi": ("d_pts",),
+        "TS%": ("ts_pct",), "TS% concessa": ("d_ts_pct",),
+        "eFG%": ("efg_pct",), "eFG% concessa": ("d_efg_pct",),
+        "TOV%": ("to_rate", "tov_pct"),
+        "Assist": ("ast",), "Rimbalzi offensivi": ("orb",),
+        "Rimbalzi difensivi": ("drb",), "Stoppate": ("blk",),
+        "Palle rubate": ("stl",), "Percentuale da 3": ("tpp",),
+        "Percentuale liberi": ("ftp",),
+        "ORB%": ("orb_pct",), "DRB%": ("drb_pct",),
     }
     work = source.copy()
     work["_team"] = work[team_col].astype("string").fillna("Squadra non identificata")
