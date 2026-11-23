@@ -180,7 +180,7 @@ if page == "Dashboard":
             st.dataframe(prospects.head(8), hide_index=True, use_container_width=True)
             st.caption("Snapshot datato 13 novembre 2026; non è un ordine ufficiale del Draft.")
 
-elif page == "Analisi giocatori":
+elif page == "Giocatori italiani":
     st.subheader("Leaderboard giocatori · NCAA 2026-27")
     frame, err = load_dataset("player_box")
     if show_load_error(err):
