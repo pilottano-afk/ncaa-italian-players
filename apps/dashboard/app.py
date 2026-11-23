@@ -31,7 +31,7 @@ div[data-testid="stMetric"]{background:rgba(120,140,170,.09);padding:12px;border
 st.sidebar.title("🏀 NCAA Italian Players")
 page = st.sidebar.radio("Navigazione", [
     "Analisi giocatori", "Giocatori italiani", "Scheda giocatore", "Draft NBA 2027",
-    "Analisi squadre", "Partite", "Quintetti e tiri", "Dashboard", "Fonti e dati"
+    "Analisi squadre", "Roster NCAA", "Partite", "Quintetti e tiri", "Dashboard", "Fonti e dati"
 ])
 st.sidebar.caption("Stagione attiva: 2026-27 · season=2027")
 st.sidebar.caption("Dati storici esclusi")
@@ -145,6 +145,11 @@ def show_load_error(err):
         st.warning(err)
         return True
     return False
+
+if st.sidebar.button("🔄 Aggiorna dati visualizzati", help="Ricarica i dataset e i conteggi dalla banca dati; non avvia una nuova importazione NCAA."):
+    summary.clear()
+    load_dataset.clear()
+    st.rerun()
 
 
 st.markdown('<div class="hero"><h1>NCAA Italian Players</h1><p>Basketball intelligence · NCAA Men 2026-27 · Italian player tracker & NBA Draft 2027</p></div>', unsafe_allow_html=True)
