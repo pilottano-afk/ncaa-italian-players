@@ -30,7 +30,7 @@ div[data-testid="stMetric"]{background:rgba(120,140,170,.09);padding:12px;border
 
 st.sidebar.title("🏀 NCAA Italian Players")
 page = st.sidebar.radio("Navigazione", [
-    "Giocatori italiani", "Scheda giocatore", "Draft NBA 2027",
+    "Analisi giocatori", "Giocatori italiani", "Scheda giocatore", "Draft NBA 2027",
     "Analisi squadre", "Partite", "Quintetti e tiri", "Dashboard", "Fonti e dati"
 ])
 st.sidebar.caption("Stagione attiva: 2026-27 · season=2027")
@@ -180,7 +180,7 @@ if page == "Dashboard":
             st.dataframe(prospects.head(8), hide_index=True, use_container_width=True)
             st.caption("Snapshot datato 13 novembre 2026; non è un ordine ufficiale del Draft.")
 
-elif page == "Giocatori italiani":
+elif page == "Analisi giocatori":
     st.subheader("Leaderboard giocatori · NCAA 2026-27")
     frame, err = load_dataset("player_box")
     if show_load_error(err):
